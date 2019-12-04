@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <link rel="stylesheet" href="/static/css/bootstrap.min.css" />
+    <title>MT4</title>
+    <script src="/static/js/jquery.min.js"></script>
+    <link rel="stylesheet" href="/static/css/bootstrap-table.min.css" />
+    <script src="/static/js/bootstrap-table.min.js"></script>
+  </head>
+  <body>
+    <style>
+      .column {
+        float: left;
+        width: 50%;
+        height: 100%;
+      }
+      .row {
+        height: 600px;
+      }
+
+      /* Clear floats after the columns */
+      .row:after {
+        content: "";
+        display: table;
+        clear: both;
+      }
+      .container {
+        margin-top: 40px;
+      }
+    </style>
+    <div class="container">
+      <div class="row">
+        <div class="column">
+          <table id="tableOrder" data-toggle="table" data-height="200">
+            <thead>
+              <tr>
+                <th data-field="symbol">Symbol</th>
+                <th data-field="type">Type</th>
+                <th data-field="size">Size</th>
+                <th data-field="price">Price</th>
+                <th data-field="mprice">Market Price</th>
+              </tr>
+            </thead>
+          </table>
+        </div>
+        <div class="column"><img id="result" style="max-height: 100%;" /></div>
+      </div>
+    </div>
+
+    <script>
+      function processData(headers, data) {
+        var rawList = data.split(/\n{2,}/);
+
+        var dataList = rawList.map(function(row) {
+          var rowData = row.trim().split(/[^\w\.]+/);
+          var ret = {};
+          rowData.forEach(function(rowItem, i) {
+            ret[headers[i]] = rowItem;
+          });
+          return ret;
+        });
+
+        return dataList;
+      }
+      var ws = new WebSocket("ws://" + location.host);
+      ws.onopen = function() {
+        console.log("websocket is connected ...");
+      };
+      ws.onmessage = function(ev) {
+        document.querySelector("#result").src = "/test.png?t=" + Date.now();
+        var tableEl = $("#tableOrder");
+        var headers = tableEl
+          .find("thead th")
+          .get()
+          .map(function(el) {
+            return $(el).data("field");
+          });
+        var dataList = processData(headers, ev.data);
+        // console.log(dataList);
+        tableEl.bootstrapTable("load", dataList);
+      };
+    </script>
+  </body>
+</html>

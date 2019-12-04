@@ -53,20 +53,7 @@
     </div>
 
     <script>
-      function processData(headers, data) {
-        var rawList = data.split(/\n{2,}/);
-
-        var dataList = rawList.map(function(row) {
-          var rowData = row.trim().split(/[^\w\.]+/);
-          var ret = {};
-          rowData.forEach(function(rowItem, i) {
-            ret[headers[i]] = rowItem;
-          });
-          return ret;
-        });
-
-        return dataList;
-      }
+      
       var ws = new WebSocket("ws://" + location.host);
       ws.onopen = function() {
         console.log("websocket is connected ...");
@@ -74,15 +61,7 @@
       ws.onmessage = function(ev) {
         document.querySelector("#result").src = "/test.png?t=" + Date.now();
         var tableEl = $("#tableOrder");
-        var headers = tableEl
-          .find("thead th")
-          .get()
-          .map(function(el) {
-            return $(el).data("field");
-          });
-        var dataList = processData(headers, ev.data);
-        // console.log(dataList);
-        tableEl.bootstrapTable("load", dataList);
+        tableEl.bootstrapTable("load", JSON.parse(ev.data));
       };
     </script>
   </body>

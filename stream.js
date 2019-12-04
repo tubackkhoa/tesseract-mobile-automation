@@ -42,7 +42,7 @@ const getStream = async () => {
 };
 
 const sendData = ws => {
-  ws.send(data);
+  ws.send(JSON.stringify(data));
 };
 
 app.use(express.static("public"));
@@ -57,17 +57,32 @@ app.ws("/", function(ws, req) {
   sendData(ws);
 });
 
+app.get("/data", function(req,res){
+  res.send(data);
+});
+
 var aWss = expressWs.getWss("/");
 const port = process.env.PORT || 80;
 app.listen(port, "0.0.0.0", function() {
   console.log(`Example app listening on ${port}!`);
 });
-
+const headers = ["symbol", "type", "size", "price", "mprice"];
 const detect = async ()=>{
     const buffer = await getStream();     
     // console.log('tesscmd', tesscmd)
     fs.writeFileSync(image, buffer);
-    return execSync(tesscmd).toString();
+    const rawData = execSync(tesscmd).toString();
+
+    const rawList = rawData.split(/\n{2,}/);
+
+    return rawList.map(function(row) {
+      const rowData =  row.trim().split(/[^\w\.]+/);
+      var ret = {};
+      rowData.forEach(function(rowItem, i) {
+        ret[headers[i]] = rowItem;
+      });
+      return ret;
+    });
 };
 
 // trigger update

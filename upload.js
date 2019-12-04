@@ -6,11 +6,19 @@ const sharp = require("sharp");
 const { Readable } = require("stream");
 
 let stop = false;
-const device = process.argv[2] || "127.0.0.1:58297";
-console.log("device", device);
+const device = process.argv[2] || "localhost:5555";
+
+
+const adb = 'E:/MT4/platform-tools/adb.exe';
+const TESSDATA_PREFIX = 'E:/MT4/tesseract/tessdata';
+const tesseract = 'E:/MT4/tesseract/tesseract.exe';
+const cmd = `${adb} -s ${device} exec-out screencap -p`;
+
+console.log('device', device, 'cmd', cmd);
 
 const getStream = async () => {
-  const inputBuffer = execSync(`adb -s ${device} exec-out screencap -p`);
+  
+  const inputBuffer = execSync(cmd);
   // fs.writeFileSync("test.png", inputBuffer);
   // 720 × 1280
   let top = 360;
@@ -23,15 +31,16 @@ const getStream = async () => {
     })
     .toBuffer();
 
-  const readableInstanceStream = new Readable();
-  readableInstanceStream.push(buffer);
-  readableInstanceStream.push(null);
-
-  return readableInstanceStream;
+    return buffer;
+  
 };
 
 const run = async () => {
-  const upload = await getStream();
+  const buffer = await getStream();
+  const upload = new Readable();
+  upload.push(buffer);
+  upload.push(null);
+
   upload.pipe(request.post("http://202.134.19.119:3000/upload"));
 
   var upload_progress = 0;
@@ -46,4 +55,23 @@ const run = async () => {
   });
 };
 
-run();
+// run();
+
+const test = async ()=>{
+  const start = Date.now();
+    try {
+      const buffer = await getStream();
+      const image = "test.png";
+      const tesscmd = `${tesseract} ${image} stdout`;
+      console.log('tesscmd', tesscmd)
+      fs.writeFileSync(image, buffer);
+      const data = execSync(tesscmd).toString();
+      const elapsed = Date.now() - start;
+      console.log("Took " + elapsed + " ms\n", data);
+      
+    } catch (ex) {
+      console.log("Error processing", ex);
+    }
+}
+
+test();

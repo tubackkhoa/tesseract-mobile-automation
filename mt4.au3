@@ -91,16 +91,18 @@ Func Example($verbose)
 	  ComboBox_SelectString($hOrderWin, "", "[CLASS:ComboBox; INSTANCE:1]", $symbol)
 	  ComboBox_SelectString($hOrderWin, "", "[CLASS:ComboBox; INSTANCE:3]", "Pending Order")
 	  ComboBox_SelectString($hOrderWin, "", "[CLASS:ComboBox; INSTANCE:5]", $orderType)
-;~ 	  ControlSetText($hOrderWin, "", "[CLASS:Edit; INSTANCE:6]", $price)
+	  ControlSetText($hOrderWin, "", "[CLASS:Edit; INSTANCE:6]", $price)
 	  $mPrice = ControlGetHandle($hOrderWin, "", "[CLASS:Edit; INSTANCE:6]")
 	  ControlClick($mPrice, "", "","left", 2, 60, 10)
-	  Send($price)
+	  ControlSend($hOrderWin, "", "[CLASS:Edit; INSTANCE:6]", $price)
+;~ 	  Send($price)
 
 ;~ 	  trigger increase then decrease to change data of price
 ;~ 	  $udPrice = ControlGetHandle($hOrderWin, "", "[CLASS:msctls_updown32; INSTANCE:3]");
 ;~ 	  ControlClick($udPrice, "", "","left", 1, 9, 2)
 ;~ 	  ControlClick($udPrice, "", "","left", 1, 9, 14)
 
+	  Sleep(1000)
 	  ;~    click place then done
 	  Local $hPlace = ControlGetHandle($hOrderWin, "", "[CLASS:Button; INSTANCE:16]")
 ;~ 	  ConsoleWrite("Place handle: " & $hPlace & @LF)
@@ -116,7 +118,7 @@ Func Example($verbose)
 	  Local $hOK = ControlGetHandle($hOrderWin, "", "[CLASS:Button; INSTANCE:22]")
 	  ControlClick($hOK, "", "","left", 1, 5, 5)
 
-	  Sleep(1000)
+	  Sleep(500)
 
 
 

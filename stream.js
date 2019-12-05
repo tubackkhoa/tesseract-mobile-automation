@@ -31,7 +31,7 @@ const getStream = async () => {
   const inputBuffer = execSync(cmd);
   // fs.writeFileSync("test.png", inputBuffer);
   // 720 × 1280
-  let top = 360;
+  let top = 300;
   let buffer = await sharp(inputBuffer)
     .extract({
       width: 300,
@@ -59,6 +59,11 @@ app.post("/upload", function(req, res, next) {
 // update data for the first time
 app.ws("/", function(ws, req) {
   sendData(ws);
+});
+
+app.get("/reset", function(req, res){
+  tradeDict[req.query.price] = false;
+  res.send("OK");
 });
 
 app.get("/data", function(req,res){

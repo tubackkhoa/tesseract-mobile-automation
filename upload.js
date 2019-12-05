@@ -21,7 +21,7 @@ const getStream = async () => {
   const inputBuffer = execSync(cmd);
   // fs.writeFileSync("test.png", inputBuffer);
   // 720 × 1280
-  let top = 360;
+  let top = 300;
   let buffer = await sharp(inputBuffer)
     .extract({
       width: 300,

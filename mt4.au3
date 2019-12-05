@@ -86,11 +86,17 @@ Func Example($verbose)
 
 ;~ 	  ConsoleWrite("Order handle: " & $hOrderWin & @LF)
 
-	  ControlSetText($hOrderWin, "", "[CLASS:Edit; INSTANCE:1]", $volume)
+;~ 	  ControlSetText($hOrderWin, "", "[CLASS:Edit; INSTANCE:1]", $volume)
+	  ComboBox_SelectString($hOrderWin, "", "[CLASS:ComboBox; INSTANCE:2]", $volume)
 	  ComboBox_SelectString($hOrderWin, "", "[CLASS:ComboBox; INSTANCE:1]", $symbol)
 	  ComboBox_SelectString($hOrderWin, "", "[CLASS:ComboBox; INSTANCE:3]", "Pending Order")
 	  ComboBox_SelectString($hOrderWin, "", "[CLASS:ComboBox; INSTANCE:5]", $orderType)
 	  ControlSetText($hOrderWin, "", "[CLASS:Edit; INSTANCE:6]", $price)
+
+;~ 	  trigger increase then decrease to change data of price
+	  $udPrice = ControlGetHandle($hOrderWin, "", "[CLASS:msctls_updown32; INSTANCE:3]");
+	  ControlClick($udPrice, "", "","left", 1, 9, 2)
+	  ControlClick($udPrice, "", "","left", 1, 9, 14)
 
 	  ;~    click place then done
 	  Local $hPlace = ControlGetHandle($hOrderWin, "", "[CLASS:Button; INSTANCE:16]")
@@ -103,7 +109,13 @@ Func Example($verbose)
       _HTTP_Post("http://localhost/data", "price=" & URLEncode($price))
 	   ConsoleWrite("symbol: " & $symbol & " type: " & $orderType & " volume: " & $volume & " price: " & $price)
 
-	   Sleep(1000)
+;~ 	   close button ok if there is
+	  Local $hOK = ControlGetHandle($hOrderWin, "", "[CLASS:Button; INSTANCE:22]")
+	  ControlClick($hOK, "", "","left", 1, 5, 5)
+
+	  Sleep(1000)
+
+
 
 	   $i += 1
 	WEnd

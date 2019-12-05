@@ -35,7 +35,7 @@ const getStream = async () => {
   let buffer = await sharp(inputBuffer)
     .extract({
       width: 300,
-      height: 1280 - top - 600,
+      height: 1280 - top - 500,
       left: 0,
       top: top
     })
@@ -63,6 +63,11 @@ app.ws("/", function(ws, req) {
 
 app.get("/reset", function(req, res){
   tradeDict[req.query.price] = false;
+  res.send("OK");
+});
+
+app.get("/resetall", function(req, res){
+  tradeDict = {};
   res.send("OK");
 });
 

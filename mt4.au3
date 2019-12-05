@@ -70,11 +70,11 @@ Func Example($verbose)
 	   Local $type = Json_Get($tradeObj, $id & 'type')
 	   Local $volume = Json_Get($tradeObj, $id & 'size')
 
-	   Local $orderType = "Buy Limit"
+	   Local $orderType = ""
 	   If $type == "sell" Then
-		  $orderType = "Buy Limit"
-	   Else
 		  $orderType = "Sell Limit"
+	   Else
+		  $orderType = "Buy Limit"
 	   Endif
 
 

@@ -62,7 +62,10 @@ app.ws("/", function(ws, req) {
 });
 
 app.get("/data", function(req,res){
-  res.send(data);
+  const filterData = data.filter(function(rowData){
+    return !tradeDict[rowData.price];
+  });
+  res.send(filterData);
 });
 
 app.post("/data", function(req, res){
@@ -81,20 +84,26 @@ const detect = async ()=>{
     const buffer = await getStream();     
     // console.log('tesscmd', tesscmd)
     fs.writeFileSync(image, buffer);
-    const rawData = execSync(tesscmd).toString();
+    const rawData = execSync(tesscmd).toString().replace(/Orders\s+/g,'');
+    // console.log(rawData);
 
-    const rawList = rawData.split(/\n{2,}/);
+    const rawList = rawData.split(/(\r?\n){2,}/);
+    // console.log(rawList);
+    const list = []
 
-    return rawList.map(function(row) {
-      const rowData =  row.trim().split(/[^\w\.]+/);
-      var ret = {};
-      rowData.forEach(function(rowItem, i) {
-        ret[headers[i]] = rowItem;
-      });
-      return ret;
-    }).filter(function(rowData){
-      return !tradeDict[rowData.price];
+    rawList.forEach(function(row) {
+      
+      const matched =  row.match(/(\w+),\s*(sell|buy)\s*limit\s*([\d\.]+)\s+at\s+([\d\.]+)/im);
+      if(matched){
+        // console.log(row);
+        var ret = {};
+        for(let i=0;i<4;++i)
+          ret[headers[i]] = matched[i+1];
+        list.push(ret);
+      }
     });
+    // console.log('list', list);
+    return list; 
 };
 
 // trigger update

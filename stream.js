@@ -35,7 +35,7 @@ const getStream = async () => {
   let buffer = await sharp(inputBuffer)
     .extract({
       width: 300,
-      height: 1280 - top - 100,
+      height: 1280 - top - 600,
       left: 0,
       top: top
     })

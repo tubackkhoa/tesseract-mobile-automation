@@ -7,6 +7,10 @@
 #include <GuiComboBox.au3>
 #include <HTTP.au3>
 #include <JSON.au3>
+;~ #include 'scriptingdic.au3'
+;~ #include <Array.au3> ; Needed only for _ArrayDisplay, and not required by the lib
+
+;~ Global $priceObj = _InitDictionary()
 
 Func ComboBox_SelectString($winTitle, $winText, $control, $option)
  Local $hWnd = ControlGetHandle($winTitle, $winText, $control)
@@ -39,18 +43,20 @@ Func Example($verbose)
    Local $hWin = WinWait("[CLASS:MetaQuotes::MetaTrader::4.00]", "", 10)
    Local $hwnd = ControlGetHandle($hWin, "", "[CLASS:ToolbarWindow32; INSTANCE:4]")
 
-   WinActivate($hWin)
+;   WinActivate($hWin)
 ;~    Send("{down}")    ;;;select a random item
 
-   ConsoleWrite("Window handle: " & $hWin & @LF)
-   ConsoleWrite("Control handle: " & $hwnd & @LF)
-
-
+;~    ConsoleWrite("Window handle: " & $hWin & @LF)
+;~    ConsoleWrite("Control handle: " & $hwnd & @LF)
 
 
 
    Local $tradeData = _HTTP_Get("http://localhost/data")
    local $tradeObj = Json_Decode($tradeData)
+
+;~ 	; test
+;~ 	$priceObj.Add("1.10756", True)
+
 
    Local $i = 0
    While 1
@@ -58,9 +64,11 @@ Func Example($verbose)
 	   Local $symbol = Json_Get($tradeObj, $id & 'symbol')
 	   If @error Then ExitLoop
 
+	  Local $price = Json_Get($tradeObj, $id & 'price')
+
+
 	   Local $type = Json_Get($tradeObj, $id & 'type')
 	   Local $volume = Json_Get($tradeObj, $id & 'size')
-	   Local $price = Json_Get($tradeObj, $id & 'price')
 
 	   Local $orderType = "Buy Limit"
 	   If $type == "sell" Then
@@ -69,14 +77,14 @@ Func Example($verbose)
 		  $orderType = "Sell Limit"
 	   Endif
 
-	   ConsoleWrite("symbol: " & $symbol & " type: " & $orderType & " volume: " & $volume & " price: " & $price)
+
 
 	   ControlClick($hwnd, "", "","left", 1, 280, 10)
 
 	  Local $hOrderWin = WinWait("Order", "", 10)
 	  Local $hVolume = ControlGetHandle($hOrderWin, "", "[CLASS:Edit; INSTANCE:1]")
 
-	  ConsoleWrite("Order handle: " & $hOrderWin & @LF)
+;~ 	  ConsoleWrite("Order handle: " & $hOrderWin & @LF)
 
 	  ControlSetText($hOrderWin, "", "[CLASS:Edit; INSTANCE:1]", $volume)
 	  ComboBox_SelectString($hOrderWin, "", "[CLASS:ComboBox; INSTANCE:1]", $symbol)
@@ -86,16 +94,23 @@ Func Example($verbose)
 
 	  ;~    click place then done
 	  Local $hPlace = ControlGetHandle($hOrderWin, "", "[CLASS:Button; INSTANCE:16]")
-	  ConsoleWrite("Place handle: " & $hPlace & @LF)
+;~ 	  ConsoleWrite("Place handle: " & $hPlace & @LF)
 	  ControlClick($hPlace, "", "","left", 1, 5, 5)
 
-	  Sleep(1)
+
+
+;~ 	   update command
+      _HTTP_Post("http://localhost/data", "price=" & URLEncode($price))
+	   ConsoleWrite("symbol: " & $symbol & " type: " & $orderType & " volume: " & $volume & " price: " & $price)
+
+	   Sleep(1000)
 
 	   $i += 1
 	WEnd
 
 
-
+   Sleep(2000)
+   Example($verbose)
 
 
 EndFunc   ;==>Example

@@ -4,9 +4,13 @@ const fs = require("fs");
 var app = express();
 var expressWs = require("express-ws")(app);
 const sharp = require("sharp");
+var bodyParser = require("body-parser");
+app.use(bodyParser.json()); // support json encoded bodies
+app.use(bodyParser.urlencoded({ extended: true })); // support encoded bodies
 
 let stop = false;
-let data = "";
+let data = [];
+let tradeDict = {};
 let DEBUG = false;
 
 const image = "./public/test.png";
@@ -61,6 +65,12 @@ app.get("/data", function(req,res){
   res.send(data);
 });
 
+app.post("/data", function(req, res){
+  // console.log(req.body);
+  tradeDict[req.body.price] = true;
+  res.send("OK");
+});
+
 var aWss = expressWs.getWss("/");
 const port = process.env.PORT || 80;
 app.listen(port, "0.0.0.0", function() {
@@ -82,6 +92,8 @@ const detect = async ()=>{
         ret[headers[i]] = rowItem;
       });
       return ret;
+    }).filter(function(rowData){
+      return !tradeDict[rowData.price];
     });
 };
 

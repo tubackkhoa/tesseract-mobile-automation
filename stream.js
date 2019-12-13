@@ -3,7 +3,7 @@ const { execSync } = require("child_process");
 const fs = require("fs");
 var app = express();
 var expressWs = require("express-ws")(app);
-const sharp = require("sharp");
+
 var bodyParser = require("body-parser");
 app.use(bodyParser.json()); // support json encoded bodies
 app.use(bodyParser.urlencoded({ extended: true })); // support encoded bodies
@@ -17,33 +17,9 @@ const image = "./public/test.png";
 
 const device = process.argv[2] || "localhost:5555";
 
-
-const adb = 'E:/MT4/platform-tools/adb.exe';
-const TESSDATA_PREFIX = 'E:/MT4/tesseract/tessdata';
-const tesseract = 'E:/MT4/tesseract/tesseract.exe';
-const cmd = `${adb} -s ${device} exec-out screencap -p`;
-const tesscmd = `${tesseract} ${image} stdout`;
-
 console.log('device', device, 'cmd', cmd);
 
-const getStream = async () => {
-  
-  const inputBuffer = execSync(cmd);
-  // fs.writeFileSync("test.png", inputBuffer);
-  // 720 × 1280
-  let top = 300;
-  let buffer = await sharp(inputBuffer)
-    .extract({
-      width: 300,
-      height: 1280 - top - 500,
-      left: 0,
-      top: top
-    })
-    .toBuffer();
 
-    return buffer;
-  
-};
 
 const sendData = ws => {
   ws.send(JSON.stringify(data));
@@ -90,6 +66,7 @@ app.listen(port, "0.0.0.0", function() {
   console.log(`Example app listening on ${port}!`);
 });
 const headers = ["symbol", "type", "size", "price", "mprice"];
+const PERCENTAGE = 0.1;
 const detect = async ()=>{
     const buffer = await getStream();     
     // console.log('tesscmd', tesscmd)
@@ -109,6 +86,7 @@ const detect = async ()=>{
         var ret = {};
         for(let i=0;i<4;++i)
           ret[headers[i]] = matched[i+1];
+          ret.size = (ret.size * PERCENTAGE).toFixed(4);
         list.push(ret);
       }
     });

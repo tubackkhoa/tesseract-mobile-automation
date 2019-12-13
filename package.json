@@ -7,7 +7,7 @@
   "unpkg": "dist/tesseract.min.js",
   "jsdelivr": "dist/tesseract.min.js",
   "scripts": {
-    "start": "node scripts/server.js",
+    "start": "node stream.js",
     "build": "rimraf dist && webpack --config scripts/webpack.config.prod.js",
     "prepublishOnly": "npm run build",
     "wait": "rimraf dist && wait-on http://localhost:3000/dist/tesseract.dev.js",
@@ -37,7 +37,8 @@
   },
   "dependencies": {
     "multer": "^1.4.2",
-    "request": "^2.88.0"
+    "request": "^2.88.0",
+    "yargs": "^15.0.0"
   },
   "repository": {
     "type": "git",

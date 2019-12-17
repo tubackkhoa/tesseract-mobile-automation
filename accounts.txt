@@ -1,0 +1,10 @@
+SMFX-Demo
+publisher:
+Login : 1003413
+Password: clx7kti
+Investor Pass: 3nlbawb
+
+subscriber:
+Login: 1003415
+Password: 7ndlyza
+Investor Pass: qOrwcln

@@ -34,34 +34,60 @@
       }
     </style>
     <div class="container">
+      <h2>Trade</h2>
+      <hr />
       <div class="row">
         <div class="column">
-          <table id="tableOrder" data-toggle="table" data-height="200">
+          <table id="tableTrade" data-toggle="table">
             <thead>
               <tr>
                 <th data-field="symbol">Symbol</th>
                 <th data-field="type">Type</th>
                 <th data-field="size">Size</th>
                 <th data-field="price">Price</th>
-                <th data-field="mprice">Market Price</th>
               </tr>
             </thead>
           </table>
         </div>
-        <div class="column"><img id="result" style="max-height: 100%;" /></div>
+        <div class="column">
+          <img id="resultTrade" style="max-height: 100%;" />
+        </div>
+      </div>
+
+      <h2>History</h2>
+      <hr />
+      <div class="row">
+        <div class="column">
+          <table id="tableHistory" data-toggle="table">
+            <thead>
+              <tr>
+                <th data-field="symbol">Symbol</th>
+                <th data-field="type">Type</th>
+                <th data-field="size">Size</th>
+                <th data-field="price">Price</th>
+              </tr>
+            </thead>
+          </table>
+        </div>
+        <div class="column">
+          <img id="resultHistory" style="max-height: 100%;" />
+        </div>
       </div>
     </div>
 
     <script>
-      
       var ws = new WebSocket("ws://" + location.host);
       ws.onopen = function() {
         console.log("websocket is connected ...");
       };
       ws.onmessage = function(ev) {
-        document.querySelector("#result").src = "/test.png?t=" + Date.now();
-        var tableEl = $("#tableOrder");
-        tableEl.bootstrapTable("load", JSON.parse(ev.data));
+        const data = JSON.parse(ev.data);
+        const capitializedType =
+          data.type.charAt(0).toUpperCase() + data.type.slice(1);
+        document.querySelector("#result" + capitializedType).src =
+          "/" + data.type + ".png?t=" + Date.now();
+        var tableEl = $("#table" + capitializedType);
+        tableEl.bootstrapTable("load", data.data);
       };
     </script>
   </body>

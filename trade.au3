@@ -58,8 +58,8 @@ Func ClosePrice($list, $historyURL)
 		 Local $aPos = WinGetPos($hOrderWin)
 		 MouseClick("left", $aPos[0] + 630, $aPos[1] + 293, 1)
 		 ;~ 	   update command
-         _HTTP_Post($historyURL, "price=" & URLEncode($price))
-	     ConsoleWrite("close price: " & $price & @LF)
+         _HTTP_Post($historyURL, "price=" & URLEncode($aArray[1]))
+	     ConsoleWrite("close price: " & $aArray[1] & @LF)
 		 Sleep(500)
 ;~ 		 ExitLoop
 	  EndIf
@@ -183,7 +183,7 @@ Func Trade($tradeURL, $verbose)
 EndFunc
 
 
-Func Run($tradeURL, $historyURL, $verbose)
+Func Process($tradeURL, $historyURL, $verbose)
    Trade($tradeURL, $verbose)
    Sleep(1000)
    Close($historyURL, $verbose)
@@ -193,5 +193,5 @@ EndFunc   ;==>Example
 
 
 While 1
-   Run("http://localhost/data?type=trade", "http://localhost/data?type=history", 0)
+   Process("http://localhost/data?type=trade", "http://localhost/data?type=history", 0)
 WEnd

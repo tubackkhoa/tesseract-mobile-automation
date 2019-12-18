@@ -1,4 +1,5 @@
 const argv = require("yargs").argv;
+const level = require('level');
 // 250: emulator-5564:history.png, 300, emulator-5554, trade.png
 const platform = process.platform;
 let env;
@@ -15,21 +16,21 @@ if (platform === "win32") {
     ADB: "/Users/thanhtu/Library/Android/sdk/platform-tools/adb"
   };
 }
-
+const db = level('mt4')
 const express = require("express");
 const { execSync, fork } = require("child_process");
 const fs = require("fs");
-var app = express();
-var expressWs = require("express-ws")(app);
+const app = express();
+const expressWs = require("express-ws")(app);
+const bodyParser = require("body-parser");
+const {extractTradeData, modifyVolume} = require('./utils')
 
-var bodyParser = require("body-parser");
 app.use(bodyParser.json()); // support json encoded bodies
 app.use(bodyParser.urlencoded({ extended: true })); // support encoded bodies
 
 let stop = false;
 let data = { trade: [], history: [] };
-let dict = { trade: {}, history: {} };
-let historyDict = {};
+
 let DEBUG = argv.verbose || false;
 let delay = argv.delay || 100;
 const PERCENTAGE = argv.percentage || 0.1;
@@ -46,7 +47,8 @@ const sendTradeMessage = () => {
   childProcessTrade.send({
     device: argv.deviceTrade,
     image: "public/trade.png",
-    top: 300
+    top:  210,
+    right:  550 
   });
 };
 
@@ -54,7 +56,8 @@ const sendHistoryMessage = () => {
   childProcessHistory.send({
     device: argv.deviceHistory,
     image: "public/history.png",
-    top: 250
+    top:  210,
+    right:  550 
   });
 };
 
@@ -70,33 +73,25 @@ childProcessHistory.on("message", message => {
   setTimeout(sendHistoryMessage, delay);
 });
 
-const headers = ["symbol", "type", "size", "price", "mprice"];
-const detect = rawData => {
-  const rawList = rawData.split(/(\r?\n){2,}/);
-  const list = [];
 
-  rawList.forEach(row => {
-    const matched = row.match(
-      /(\w+),\s*(sell|buy)\s*limit\s*([\d\.]+)\s+at\s+([\d\.]+)/im
-    );
-    if (matched) {
-      // console.log(row);
-      var ret = {};
-      for (let i = 0; i < 4; ++i) ret[headers[i]] = matched[i + 1];
-      ret.size = (ret.size * PERCENTAGE).toFixed(4);
-      list.push(ret);
-    }
-  });
-  // console.log('list', list);
-  return list;
-};
+const filterCopyTrade = tradeData => {
+  const filterData = [];
+  for(let item of tradeData) {
+    const copyOrderID = getCopyOrderID('history', item.orderID);
+    // has entered 
+    if(copyOrderID) filterData.push({...item,copyOrderID});
+  }
+  return filterData;
+}
+
+
 
 // trigger update
 const update = (rawData, type) => {
   if (!stop) {
     const start = Date.now();
     try {
-      data[type] = detect(rawData);
+      data[type] = extractTradeData(rawData);
       if (DEBUG) {
         const elapsed = Date.now() - start;
         console.log("Took " + elapsed + " ms\n", type, data[type]);
@@ -112,6 +107,16 @@ const sendData = (ws, type) => {
   ws.send(JSON.stringify({ data: data[type], type: type }));
 };
 
+const getCopyOrderID = async (type, orderID)=>{
+  let value;
+  try{
+   value = await db.get(`${type}.${orderID}`);
+  } catch(ex){
+    value = "";
+  }
+  return value;
+}
+
 app.use(express.static("public"));
 
 app.post("/upload", function(req, res, next) {
@@ -125,35 +130,60 @@ app.ws("/", function(ws, req) {
   sendData(ws, "history");
 });
 
-app.get("/reset", function(req, res) {
-  const type = req.query.type;
-  dict[type][req.query.price] = false;
-  res.send("OK");
+app.get("/reset", async (req, res) => {
+  const {type,orderID} = req.query.type;
+  try {
+    await db.del(`${type}.${orderID}`);
+    res.send("OK");
+  } catch(ex){
+    res.send(ex);
+  }
 });
 
 app.get("/resetall", function(req, res) {
-  const type = req.query.type;
-  dict[type] = {};
+  db.clear();
   res.send("OK");
 });
 
-app.get("/data", function(req, res,next) {
-  const type = req.query.type;
+app.get("/data", async (req, res,next) => {
+  const {type, raw} = req.query;
   if(!data[type]) return next();
-  const filterData = data[type].filter(function(rowData) {
-    return !dict[type][rowData.price];
-  });
-  res.send(filterData);
+
+  // filter data from image processing
+  if(!raw){
+    let filterData = [];
+    for(let item of data[type]) {
+      const copyOrderID = getCopyOrderID(type, item.orderID);
+      // not processed
+      if(!copyOrderID) filterData.push(item);
+    }
+  
+    if(type === 'history'){
+      // with history, it means that we need to close the order, 
+      // and we only close copy order that is mapped to this order, otherwise it is meaningless
+      filterData = filterCopyTrade(filterData);
+    } else {
+      filterData = modifyVolume(filterData);
+    }
+
+    res.send(filterData);
+  } else {
+    // just return raw data
+    res.send(data[type])
+  }
+
+  
 });
 
-app.post("/data", function(req, res) {
+app.post("/data", async (req, res) => {
   // console.log(req.body);
-  const type = req.query.type;
-  dict[type][req.body.price] = true;
+  const {type,orderID, copyOrderID} = req.query;
+  // update database
+  await db.put(`${type}.${orderID}`, copyOrderID);
   res.send("OK");
 });
 
-var aWss = expressWs.getWss("/");
+const aWss = expressWs.getWss("/");
 const port = argv.port || 80;
 app.listen(port, "0.0.0.0", () => {
   console.log(`Example app listening on ${port}!`);

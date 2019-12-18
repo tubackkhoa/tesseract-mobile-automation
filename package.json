@@ -15,6 +15,7 @@
     "sharp": "^0.23.3"
   },
   "dependencies": {
+    "level": "^6.0.0",
     "multer": "^1.4.2",
     "request": "^2.88.0",
     "yargs": "^15.0.0"

@@ -27,10 +27,11 @@ const childProcess = fork("./extract_text.js", {
 childProcess.send({
   device: argv.device,
   image: argv.image,
-  top: argv.top || 300
+  top: argv.top || 210,
+  right: argv.right || 550 
 });
 
 // listen for messages from forked childProcess
 childProcess.on("message", message => {
-  console.log(message.rawData);
+   console.log(message.rawData);
 });

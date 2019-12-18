@@ -8,3 +8,4 @@ worker.dev.js
 .nyc_output
 dist/
 *.swp
+mt4/

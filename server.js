@@ -137,9 +137,10 @@ app.get("/resetall", function(req, res) {
   res.send("OK");
 });
 
-app.get("/data", function(req, res) {
+app.get("/data", function(req, res,next) {
   const type = req.query.type;
-  const filterData = data.filter(function(rowData) {
+  if(!data[type]) return next();
+  const filterData = data[type].filter(function(rowData) {
     return !dict[type][rowData.price];
   });
   res.send(filterData);

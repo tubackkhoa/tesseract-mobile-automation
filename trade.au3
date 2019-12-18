@@ -38,7 +38,63 @@ Func ComboBox_SelectString($winTitle, $winText, $control, $option)
  Return True
 EndFunc   ;==>ComboBox_SelectString
 
-Func Example($verbose)
+
+Func ClosePrice($list, $historyURL)
+   Local $historyData = _HTTP_Get($historyURL)
+   local $historyObj = Json_Decode($historyData)
+   Local $count = _GUICtrlListView_GetItemCount($list)
+;~    ConsoleWrite("Total " & $count & @LF)
+   For $ind = 0 To $count - 1 Step 1
+
+	  WinClose("Order")
+	  _GUICtrlListView_ClickItem($list, $ind, "left", False, 2)
+	  Local $hOrderWin = WinWait("Order", "", 1)
+	  Local $sText = WinGetTitle($hOrderWin)
+
+;~ 	  If Not $sText Then ContinueLoop
+;~ 	  ConsoleWrite($ind & ") " & $sText & @LF)
+	  Local $aArray = StringRegExp($sText, 'at ([^\s]+)', $STR_REGEXPARRAYFULLMATCH)
+	  If UBound($aArray) == 2 And HasPrice($historyObj, $aArray[1]) Then
+		 Local $aPos = WinGetPos($hOrderWin)
+		 MouseClick("left", $aPos[0] + 630, $aPos[1] + 293, 1)
+		 ;~ 	   update command
+         _HTTP_Post($historyURL, "price=" & URLEncode($price))
+	     ConsoleWrite("close price: " & $price & @LF)
+		 Sleep(500)
+;~ 		 ExitLoop
+	  EndIf
+
+   Next
+EndFunc
+
+Func HasPrice($historyObj, $price)
+   Local $i = 0
+   While 1
+	   Local $id = '[' & $i & '].'
+ 	   Local $currentPrice = Json_Get($historyObj, $id & 'price')
+	   If @error Then ExitLoop
+
+	  If $currentPrice == $price Then
+		 return True
+	  EndIf
+
+	   $i += 1
+	WEnd
+
+	return False
+EndFunc
+
+Func Close($historyURL, $verbose)
+   ; Retrieve the position as well as height and width of the active window.
+   Local $hWin = WinWait("[CLASS:MetaQuotes::MetaTrader::4.00]", "", 10)
+   Local $hwnd = ControlGetHandle($hWin, "", "[CLASS:SysListView32; INSTANCE:1]")
+
+   WinActivate($hWin)
+   ClosePrice($hwnd, $historyURL)
+
+EndFunc   ;==>Example
+
+Func Trade($tradeURL, $verbose)
    ; Retrieve the position as well as height and width of the active window.
    Local $hWin = WinWait("[CLASS:MetaQuotes::MetaTrader::4.00]", "", 10)
    Local $hwnd = ControlGetHandle($hWin, "", "[CLASS:ToolbarWindow32; INSTANCE:4]")
@@ -51,7 +107,7 @@ Func Example($verbose)
 
 
 
-   Local $tradeData = _HTTP_Get("http://localhost/data")
+   Local $tradeData = _HTTP_Get($tradeURL)
    local $tradeObj = Json_Decode($tradeData)
 
 ;~ 	; test
@@ -111,7 +167,7 @@ Func Example($verbose)
 
 
 ;~ 	   update command
-      _HTTP_Post("http://localhost/data", "price=" & URLEncode($price))
+      _HTTP_Post($tradeURL, "price=" & URLEncode($price))
 	   ConsoleWrite("symbol: " & $symbol & " type: " & $orderType & " volume: " & $volume & " price: " & $price & @LF)
 
 ;~ 	   close button ok if there is
@@ -124,20 +180,18 @@ Func Example($verbose)
 
 	   $i += 1
 	WEnd
+ EndFunc
 
 
-   Sleep(2000)
-   Example($verbose)
-
-
+Func Run($tradeURL, $historyURL, $verbose)
+   Trade($tradeURL, $verbose)
+   Sleep(1000)
+   Close($historyURL, $verbose)
+   Sleep(1000)
 EndFunc   ;==>Example
 
 
 
-;~ While 1
-;~         Sleep(2000)
-;~         Example(17, 0, 0)
-;~ 		Example(1, 1, 0)
-;~ WEnd
-
-Example(0)
+While 1
+   Run("http://localhost/data?type=trade", "http://localhost/data?type=history", 0)
+WEnd

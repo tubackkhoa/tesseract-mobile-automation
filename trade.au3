@@ -180,7 +180,7 @@ Func Trade($tradeURL, $verbose)
 
 	   $i += 1
 	WEnd
- EndFunc
+EndFunc
 
 
 Func Run($tradeURL, $historyURL, $verbose)

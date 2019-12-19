@@ -29,6 +29,7 @@ const fs = require("fs");
 const app = express();
 const expressWs = require("express-ws")(app);
 const bodyParser = require("body-parser");
+const path = require('path');
 const {extractTradeData, modifyVolume} = require('./utils')
 
 app.use(bodyParser.json()); // support json encoded bodies
@@ -43,8 +44,9 @@ let delay = argv.delay || 100;
 let autoit;
 const PERCENTAGE = argv.percentage || 0.1;
 
+const accountsExePath = path.join(__dirname, 'account_list');
 const updateAccounts = () => {
-  accounts.data = execSync(__dirname + '/account_list').toString().replace(/;$/,"").split(/\s*;\s*/);
+  accounts.data = execSync(accountsExePath).toString().replace(/;$/,"").split(/\s*;\s*/);
   if(!accounts.selected) accounts.selected = accounts.data[0];
   setTimeout(updateAccounts, 1000);
 }
@@ -56,6 +58,7 @@ const stopAutoIT=()=>{
   }
 }
 
+const tradeExePath = path.join(__dirname, 'trade');
 const startAutoIT=()=>{
   stopAutoIT();
 
@@ -63,7 +66,7 @@ const startAutoIT=()=>{
   const ACCOUNT_ID = accounts.selected;
 
   // spawn can use current directory
-  autoit = spawn('trade', [], {env:{ACTION, ACCOUNT_ID}});
+  autoit = spawn(tradeExePath, [], {env:{ACTION, ACCOUNT_ID}});
   autoit.stdout.on('data', (data) => {
     console.log(`stdout: ${data}`);
   });
@@ -90,7 +93,7 @@ const sendTradeMessage = () => {
     device: argv.deviceTrade,
     image: "public/trade.png",
     top:  210,
-    right:  550 
+    right:  450
   });
 };
 
@@ -99,7 +102,7 @@ const sendHistoryMessage = () => {
     device: argv.deviceHistory,
     image: "public/history.png",
     top:  210,
-    right:  550 
+    right:  550  // no need to extract stop loss and take profit 
   });
 };
 
@@ -169,7 +172,9 @@ app.post("/accounts", (req,res)=>{
   // restart with new account
   if(accounts.selected !== req.body.selected){
     accounts.selected = req.body.selected;
-    startAutoIT();
+    if(state.start) {
+      startAutoIT();
+    }
   }
   res.send(accounts);
 });

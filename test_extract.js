@@ -14,6 +14,8 @@ if (platform === "win32") {
   };
 }
 
+env.PADDING_BOTTOM = 400;
+
 const { fork } = require("child_process");
 const argv = require("yargs").argv;
 
@@ -28,10 +30,11 @@ childProcess.send({
   device: argv.device,
   image: argv.image,
   top: argv.top || 210,
-  right: argv.right || 550 
+  right: argv.right || 450 
 });
 
 // listen for messages from forked childProcess
 childProcess.on("message", message => {
    console.log(message.rawData);
+   childProcess.kill();
 });

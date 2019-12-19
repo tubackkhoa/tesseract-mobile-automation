@@ -104,14 +104,28 @@ Func HasCopyOrder($historyObj, $copyOrderID)
 	return ""
 EndFunc
 
+Func ReverseCommand($orderType)
+
+   If StringLeft($orderType, 1) = "S" Then
+	   $orderType = StringReplace($orderType, "Sell", "Buy")
+	Else
+	   $orderType = StringReplace($orderType, "Buy", "Sell")
+	EndIf
+   return $orderType
+EndFunc
 
 Func Trade($tradeURL, $historyURL)
    ; Retrieve the position as well as height and width of the active window.
-   Local $hWin = WinWait("[CLASS:MetaQuotes::MetaTrader::4.00]", "", 10)
+;~    Local $hWin = WinWait("[CLASS:MetaQuotes::MetaTrader::4.00]", "", 10)
+   Local $sAccountID = EnvGet("ACCOUNT_ID")
+   Local $sAction = EnvGet("ACTION")
+   Local $hWin = WinWait("[TITLE:" & $sAccountID & "; CLASS:MetaQuotes::MetaTrader::4.00]", "", 10)
+   WinActivate($hWin)
+
    Local $hwnd = ControlGetHandle($hWin, "", "[CLASS:ToolbarWindow32; INSTANCE:4]")
    Local $list = ControlGetHandle($hWin, "", "[CLASS:SysListView32; INSTANCE:1]")
 
-   WinActivate($hWin)
+
 
    Local $tradeData = _HTTP_Get($tradeURL)
    local $tradeObj = Json_Decode($tradeData)
@@ -131,16 +145,17 @@ Func Trade($tradeURL, $historyURL)
 	   Local $orderID = Json_Get($tradeObj, $id & 'orderID')
 
 	   Local $orderType = Json_Get($tradeObj, $id & 'type')
+	   If $sAction = "reverse" Then
+;~ 		  first char is S => replace Sell=>Buy, else replace Buy=>Sell
+		  $orderType = ReverseCommand($orderType)
+	   EndIf
+
 	   Local $volume = Json_Get($tradeObj, $id & 'volume')
 
 	   ControlClick($hwnd, "", "","left", 1, 280, 10)
 
 	  Local $hOrderWin = WinWait("Order", "", 10)
-	  Local $hVolume = ControlGetHandle($hOrderWin, "", "[CLASS:Edit; INSTANCE:1]")
 
-;~ 	  ConsoleWrite("Order handle: " & $hOrderWin & @LF)
-
-;~ 	  ControlSetText($hOrderWin, "", "[CLASS:Edit; INSTANCE:1]", $volume)
 	  ComboBox_SelectString($hOrderWin, "", "[CLASS:ComboBox; INSTANCE:2]", $volume)
 	  ComboBox_SelectString($hOrderWin, "", "[CLASS:ComboBox; INSTANCE:1]", $symbol)
 
@@ -152,11 +167,13 @@ Func Trade($tradeURL, $historyURL)
 		 If $orderType = "Sell" Then
 			Local $marginPrice = Abs(Round( Number($priceArray[1]) - Number($price),4))
 			If $marginPrice < 0.0005 Then
+			   ConsoleWrite("Market execution: sell with margin Price " & $marginPrice & @LF)
 			   MouseClick("left", $aPos[0] + 440, $aPos[1] + 270, 1)
 			EndIf
 		 Else
 			Local $marginPrice = Abs(Round( Number($priceArray[2]) - Number($price),4))
 			If $marginPrice < 0.0005 Then
+			   ConsoleWrite("Market execution: buy with margin Price " & $marginPrice & @LF)
 			   MouseClick("left", $aPos[0] + 640, $aPos[1] + 270, 1)
 			EndIf
 		 EndIf
@@ -190,12 +207,13 @@ Func Trade($tradeURL, $historyURL)
 	  Local $watchDog = 0
 	  While 1
 		 If _GUICtrlListView_GetItemCount($list) > $count Then
-			$copyOrderID = GetOrderID($list, $count)
+;~ 			must be order by last order is on top :D
+			$copyOrderID = GetOrderID($list, 0)
 			ExitLoop
 		 EndIf
 		 Sleep(500)
 		 $watchDog += 1
-		 If $watchDog > 5 Then
+		 If $watchDog > 10 Then
 			ExitLoop
 		 EndIf
 	  WEnd
@@ -203,7 +221,7 @@ Func Trade($tradeURL, $historyURL)
 	  If Not $copyOrderID = "" Then
    ;~ 	   update command
 		 _HTTP_Post($tradeURL, "orderID=" & URLEncode($orderID) & "&copyOrderID=" & $copyOrderID)
-		  ConsoleWrite("symbol: " & $symbol & " type: " & $orderType & " volume: " & $volume & " price: " & $price & @LF)
+		  ConsoleWrite("Update trade: symbol: " & $symbol & " type: " & $orderType & " volume: " & $volume & " price: " & $price & @LF)
 	  EndIf
 
 	  $i += 1
@@ -215,8 +233,6 @@ Func Trade($tradeURL, $historyURL)
    ClosePrice($list, $historyURL)
 
  EndFunc
-
-
 
 
 

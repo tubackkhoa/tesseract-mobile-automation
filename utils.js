@@ -27,14 +27,16 @@ const toObject = (names, match) => {
 const extractTradeData = rawData => {
     const matches = rawData.replace(/[_-]/g,'').matchAll(reTrade);
     return matches.map(match=> toObject(tradeHeaders, match));
-}
+};
 
 const modifyVolume = (tradeData, percentage = 1) => {
     return tradeData.map(item=>({
       ...item,
       volume : (item.volume * percentage).toString()
     }))
-  }
+  };
+
+
 
 
 module.exports = {extractTradeData,modifyVolume}

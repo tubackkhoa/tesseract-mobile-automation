@@ -11,6 +11,8 @@
     <script src="/static/js/jquery.min.js"></script>
     <link rel="stylesheet" href="/static/css/bootstrap-table.min.css" />
     <script src="/static/js/bootstrap-table.min.js"></script>
+    <link href="/static/css/bootstrap-toggle.min.css" rel="stylesheet">
+    <script src="/static/js/bootstrap-toggle.min.js"></script>
   </head>
   <body>
     <style>
@@ -35,6 +37,13 @@
     </style>
 
     <div class="container">
+
+        <select id="accounts"></select>
+     
+        <input type="checkbox" id="copyAction" style="display: none;"  data-toggle="toggle" data-on="Copy" data-offstyle="danger" data-off="Reverse">
+        <input type="checkbox" id="startAction" style="display: none;"  data-toggle="toggle" data-on="Start" data-offstyle="warning" data-off="Stop" >
+    
+
       <h2>Trade (Pending Orders)</h2>
       <hr />
       <div class="row">
@@ -53,7 +62,7 @@
           </table>
         </div>
         <div class="column">
-          <img id="resultTrade" style="max-height: 100%;" />
+          <img id="resultTrade" style="max-width: 100%;" />
         </div>
       </div>
 
@@ -75,7 +84,7 @@
           </table>
         </div>
         <div class="column">
-          <img id="resultHistory" style="max-height: 100%;" />
+          <img id="resultHistory" style="max-width: 100%;" />
         </div>
       </div>
     </div>
@@ -94,6 +103,57 @@
         var tableEl = $("#table" + capitializedType);
         tableEl.bootstrapTable("load", data.data);
       };
+
+      $(function() {
+
+        fetch('/accounts').then(ret=>ret.json()).then(function(accounts){
+          accounts.data.forEach(function(item){
+            let selected = item === accounts.selected ? 'selected' : '';
+            $('#accounts').append(`<option ${selected} value="${item}">${item}</option>`);
+          });
+         
+          $('#accounts').change(function(){
+            fetch('/accounts', {
+              method: 'post',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({selected: $(this).val()})
+            });
+          });
+        });
+
+        fetch('/state').then(ret=>ret.json()).then(function(state){
+          let copy = state.copy;
+          let start = state.start;
+
+          const update = function() {
+            fetch('/state', {
+              method: 'post',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({copy:copy, start:start})
+            });
+          };
+
+          $('#copyAction').bootstrapToggle(copy ? 'on' : 'off');
+
+          $('#copyAction').show().change(function() {
+            copy = $(this).prop('checked');
+            update();
+          });
+
+          $('#startAction').bootstrapToggle(start ? 'off' : 'on');
+
+          $('#startAction').show().change(function() {
+            start = !$(this).prop('checked');
+            update();
+          });
+        })
+    
+      });
+
     </script>
   </body>
 </html>

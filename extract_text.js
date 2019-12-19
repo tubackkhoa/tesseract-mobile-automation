@@ -7,6 +7,7 @@ const env = { TESSDATA_PREFIX: process.env.TESSDATA_PREFIX };
 const tesseract = process.env.TESSERACT;
 const DEVICE_WIDTH = process.env.DEVICE_WIDTH ||1600;
 const DEVICE_HEIGHT = process.env.DEVICE_HEIGHT ||900;
+const PADDING_BOTTOM = process.env.PADDING_BOTTOM || 0;
 
 const getStream = async (device, top, right) => {
   const cmd = `${adb} -s ${device} exec-out screencap -p`;
@@ -17,7 +18,7 @@ const getStream = async (device, top, right) => {
   let buffer = await sharp(inputBuffer)
     .extract({
       width: DEVICE_WIDTH - right,
-      height: DEVICE_HEIGHT - top,
+      height: DEVICE_HEIGHT - top - PADDING_BOTTOM,
       left: 0,
       top: top
     })

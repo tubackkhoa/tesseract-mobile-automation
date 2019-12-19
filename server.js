@@ -16,9 +16,15 @@ if (platform === "win32") {
     ADB: "/Users/thanhtu/Library/Android/sdk/platform-tools/adb"
   };
 }
+
+// update more
+env.DEVICE_WIDTH = 1600;
+env.DEVICE_HEIGHT = 900;
+env.PADDING_BOTTOM = 400;
+
 const db = level('mt4')
 const express = require("express");
-const { execSync, fork } = require("child_process");
+const { execSync, fork, spawn } = require("child_process");
 const fs = require("fs");
 const app = express();
 const expressWs = require("express-ws")(app);
@@ -30,10 +36,46 @@ app.use(bodyParser.urlencoded({ extended: true })); // support encoded bodies
 
 let stop = false;
 let data = { trade: [], history: [] };
-
+let state = {copy:true, start: false};
+let accounts = {data:[],selected:''};
 let DEBUG = argv.verbose || false;
 let delay = argv.delay || 100;
+let autoit;
 const PERCENTAGE = argv.percentage || 0.1;
+
+const updateAccounts = () => {
+  accounts.data = execSync(__dirname + '/account_list').toString().replace(/;$/,"").split(/\s*;\s*/);
+  if(!accounts.selected) accounts.selected = accounts.data[0];
+  setTimeout(updateAccounts, 1000);
+}
+
+const stopAutoIT=()=>{
+  if(autoit){
+    autoit.kill();
+    autoit = null;
+  }
+}
+
+const startAutoIT=()=>{
+  stopAutoIT();
+
+  const ACTION = state.copy ? "copy" : "reverse";
+  const ACCOUNT_ID = accounts.selected;
+
+  // spawn can use current directory
+  autoit = spawn('trade', [], {env:{ACTION, ACCOUNT_ID}});
+  autoit.stdout.on('data', (data) => {
+    console.log(`stdout: ${data}`);
+  });
+  
+  autoit.stderr.on('data', (data) => {
+    console.error(`stderr: ${data}`);
+  });
+  
+  autoit.on('close', (code) => {
+    console.log(`child process exited with code ${code}`);
+  });
+};
 
 // fork another process
 const childProcessTrade = fork("./extract_text.js", {
@@ -119,13 +161,46 @@ const getCopyOrderID = async (type, orderID)=>{
 
 app.use(express.static("public"));
 
+app.get("/accounts", (req,res)=>{
+   res.send(accounts);
+});
+
+app.post("/accounts", (req,res)=>{
+  // restart with new account
+  if(accounts.selected !== req.body.selected){
+    accounts.selected = req.body.selected;
+    startAutoIT();
+  }
+  res.send(accounts);
+});
+
+app.get("/state", (req,res)=>{
+  res.send(state);
+});
+
+app.post("/state", (req,res)=>{
+  const {copy,start} = req.body;
+  // console.log(copy, start);
+  if(start !== state.start){
+    state.start = start;
+    // change status
+    if(start) {
+      startAutoIT();
+    } else {
+      stopAutoIT();
+    }
+  }
+  state.copy = copy;
+  res.send(state);
+});
+
 app.post("/upload", function(req, res, next) {
   req.pipe(fs.createWriteStream(image));
   req.on("end", next);
 });
 
 // update data for the first time
-app.ws("/", function(ws, req) {
+app.ws("/", (ws, req) => {
   sendData(ws, "trade");
   sendData(ws, "history");
 });
@@ -192,4 +267,5 @@ app.listen(port, "0.0.0.0", () => {
   // trigger
   sendTradeMessage();
   sendHistoryMessage();
+  updateAccounts();
 });

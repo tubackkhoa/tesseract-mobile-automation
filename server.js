@@ -74,10 +74,10 @@ childProcessHistory.on("message", message => {
 });
 
 
-const filterCopyTrade = tradeData => {
+const filterCopyTrade = async tradeData => {
   const filterData = [];
   for(let item of tradeData) {
-    const copyOrderID = getCopyOrderID('history', item.orderID);
+    const copyOrderID = await getCopyOrderID('trade', item.orderID);
     // has entered 
     if(copyOrderID) filterData.push({...item,copyOrderID});
   }
@@ -153,7 +153,8 @@ app.get("/data", async (req, res,next) => {
   if(!raw){
     let filterData = [];
     for(let item of data[type]) {
-      const copyOrderID = getCopyOrderID(type, item.orderID);
+      const copyOrderID = await getCopyOrderID(type, item.orderID);
+      // console.log(type, item.orderID,copyOrderID);
       // not processed
       if(!copyOrderID) filterData.push(item);
     }
@@ -161,9 +162,9 @@ app.get("/data", async (req, res,next) => {
     if(type === 'history'){
       // with history, it means that we need to close the order, 
       // and we only close copy order that is mapped to this order, otherwise it is meaningless
-      filterData = filterCopyTrade(filterData);
+      filterData = await filterCopyTrade(filterData);
     } else {
-      filterData = modifyVolume(filterData);
+      filterData = modifyVolume(filterData, PERCENTAGE);
     }
 
     res.send(filterData);
@@ -177,7 +178,8 @@ app.get("/data", async (req, res,next) => {
 
 app.post("/data", async (req, res) => {
   // console.log(req.body);
-  const {type,orderID, copyOrderID} = req.query;
+  const {type} = req.query;
+  const {orderID, copyOrderID} = req.body;
   // update database
   await db.put(`${type}.${orderID}`, copyOrderID);
   res.send("OK");

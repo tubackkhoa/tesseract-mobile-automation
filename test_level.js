@@ -17,8 +17,6 @@ const run = async  (key)=>{
 }
 
 
-// run('name1')
+run('trade.2167992')
 
 
-for (let item of [12,13]) 
-console.log(item)

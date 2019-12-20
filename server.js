@@ -37,6 +37,7 @@ app.use(bodyParser.urlencoded({ extended: true })); // support encoded bodies
 
 let stop = false;
 let data = { trade: [], history: [] };
+let log = {};
 let state = {copy:true, start: false};
 let accounts = {data:[],selected:''};
 let DEBUG = argv.verbose || false;
@@ -58,6 +59,26 @@ const stopAutoIT=()=>{
   }
 }
 
+const aWss = expressWs.getWss("/");
+
+const sendDataToAll = (type) => {
+  const message = JSON.stringify({ data: data[type], type: type });
+  aWss.clients.forEach(ws => ws.send(message));
+};
+
+const sendData = (ws, type) => {
+  ws.send(JSON.stringify({ data: data[type], type: type }));
+};
+
+const sendLog = (ws) => {
+  ws.send(JSON.stringify({ data: log, type: 'log' }));
+};
+
+const sendLogToAll = () => {
+  const message = JSON.stringify({ data: log, type: 'log' })
+  aWss.clients.forEach(ws => ws.send(message));
+};
+
 const tradeExePath = path.join(__dirname, 'trade');
 const startAutoIT=()=>{
   stopAutoIT();
@@ -68,15 +89,24 @@ const startAutoIT=()=>{
   // spawn can use current directory
   autoit = spawn(tradeExePath, [], {env:{ACTION, ACCOUNT_ID}});
   autoit.stdout.on('data', (data) => {
-    console.log(`stdout: ${data}`);
+    const message = data.toString();
+    log = {type: 'info', message};
+    sendLogToAll();
+    console.log(`stdout: ${message}`);
   });
   
   autoit.stderr.on('data', (data) => {
-    console.error(`stderr: ${data}`);
+    message = data.toString();
+    log =  {type: 'danger', message};
+    sendLogToAll();
+    console.error(`stderr: ${message}`);
   });
   
   autoit.on('close', (code) => {
-    console.log(`child process exited with code ${code}`);
+    message = `child process exited with code ${code}, on ${accounts.selected}`;
+    log = {type:'warning', message};
+    sendLogToAll();
+    console.log(message);   
   });
 };
 
@@ -141,16 +171,14 @@ const update = (rawData, type) => {
         const elapsed = Date.now() - start;
         console.log("Took " + elapsed + " ms\n", type, data[type]);
       }
-      aWss.clients.forEach(ws => sendData(ws, type));
+      sendDataToAll(type);
     } catch (ex) {
       console.log("Error processing");
     }
   }
 };
 
-const sendData = (ws, type) => {
-  ws.send(JSON.stringify({ data: data[type], type: type }));
-};
+
 
 const getCopyOrderID = async (type, orderID)=>{
   let value;
@@ -208,6 +236,7 @@ app.post("/upload", function(req, res, next) {
 app.ws("/", (ws, req) => {
   sendData(ws, "trade");
   sendData(ws, "history");
+  sendLog(ws);
 });
 
 app.get("/reset", async (req, res) => {
@@ -265,7 +294,6 @@ app.post("/data", async (req, res) => {
   res.send("OK");
 });
 
-const aWss = expressWs.getWss("/");
 const port = argv.port || 80;
 app.listen(port, "0.0.0.0", () => {
   console.log(`Example app listening on ${port}!`);

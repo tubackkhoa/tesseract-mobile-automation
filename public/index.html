@@ -16,38 +16,33 @@
   </head>
   <body>
     <style>
-      .column {
-        float: left;
-        width: 50%;
-        height: 100%;
-      }
-      .row {
-        height: 600px;
-      }
-
       /* Clear floats after the columns */
       .row:after {
         content: "";
         display: table;
         clear: both;
       }
-      .container {
-        margin-top: 40px;
-      }
     </style>
 
-    <div class="container">
+    <div class="container-fluid p-5">
 
-        <select id="accounts"></select>
-     
-        <input type="checkbox" id="copyAction" style="display: none;"  data-toggle="toggle" data-on="Copy" data-offstyle="danger" data-off="Reverse">
-        <input type="checkbox" id="startAction" style="display: none;"  data-toggle="toggle" data-on="Start" data-offstyle="warning" data-off="Stop" >
-    
+      <div class="row">
+
+        <div class="col">
+          <select id="accounts"></select>
+          <input type="checkbox" id="copyAction" style="display: none;"  data-toggle="toggle" data-on="Copy" data-offstyle="danger" data-off="Reverse">
+          <input type="checkbox" id="startAction" style="display: none;"  data-toggle="toggle" data-on="Start" data-offstyle="warning" data-off="Stop" >
+        </div>
+        <div class="col">
+          <div role="alert" id="log">
+          </div>
+        </div>
+      </div>
 
       <h2>Trade (Pending Orders)</h2>
       <hr />
       <div class="row">
-        <div class="column">
+        <div class="col-sm">
           <table id="tableTrade" data-toggle="table">
             <thead>
               <tr>
@@ -61,7 +56,7 @@
             </thead>
           </table>
         </div>
-        <div class="column">
+        <div class="col-sm">
           <img id="resultTrade" style="max-width: 100%;" />
         </div>
       </div>
@@ -69,7 +64,7 @@
       <h2>History (Pending Orders)</h2>
       <hr />
       <div class="row">
-        <div class="column">
+        <div class="col-sm">
           <table id="tableHistory" data-toggle="table">
             <thead>
               <tr>
@@ -83,7 +78,7 @@
             </thead>
           </table>
         </div>
-        <div class="column">
+        <div class="col-sm">
           <img id="resultHistory" style="max-width: 100%;" />
         </div>
       </div>
@@ -96,12 +91,16 @@
       };
       ws.onmessage = function(ev) {
         const data = JSON.parse(ev.data);
-        const capitializedType =
-          data.type.charAt(0).toUpperCase() + data.type.slice(1);
-        document.querySelector("#result" + capitializedType).src =
-          "/" + data.type + ".png?t=" + Date.now();
-        var tableEl = $("#table" + capitializedType);
-        tableEl.bootstrapTable("load", data.data);
+        if(data.type === "log"){
+          $('#log').attr('class',"alert alert-" + data.data.type).html(data.data.message);
+        } else {
+          const capitializedType =
+            data.type.charAt(0).toUpperCase() + data.type.slice(1);
+          document.querySelector("#result" + capitializedType).src =
+            "/" + data.type + ".png?t=" + Date.now();
+          var tableEl = $("#table" + capitializedType);
+          tableEl.bootstrapTable("load", data.data);
+        }
       };
 
       $(function() {

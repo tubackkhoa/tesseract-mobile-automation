@@ -1,5 +1,6 @@
 const argv = require("yargs").argv;
 const level = require('level');
+
 // 250: emulator-5564:history.png, 300, emulator-5554, trade.png
 const platform = process.platform;
 let env;
@@ -17,10 +18,6 @@ if (platform === "win32") {
   };
 }
 
-// update more
-env.DEVICE_WIDTH = 1600;
-env.DEVICE_HEIGHT = 900;
-env.PADDING_BOTTOM = 400;
 
 const db = level('mt4')
 const express = require("express");
@@ -30,7 +27,10 @@ const app = express();
 const expressWs = require("express-ws")(app);
 const bodyParser = require("body-parser");
 const path = require('path');
-const {extractTradeData, modifyVolume} = require('./utils')
+const {extractTradeData, modifyVolume, Telegram} = require('./utils');
+
+const telegram = new Telegram(argv.telegramToken || '1069055490:AAF6X4Cq-QQrNvIRTn400qjEwFpWFCY7gok');
+const TELEGRAM_GROUPID = argv.chatId || '-308224929';
 
 app.use(bodyParser.json()); // support json encoded bodies
 app.use(bodyParser.urlencoded({ extended: true })); // support encoded bodies
@@ -38,17 +38,17 @@ app.use(bodyParser.urlencoded({ extended: true })); // support encoded bodies
 let stop = false;
 let data = { trade: [], history: [] };
 let log = {};
-let state = {copy:true, start: false};
-let accounts = {data:[],selected:''};
+let state = {copy:true, start: false,multiply:0.1,marginLimit:0.015};
+let accounts = {data:[],pubSelected:'',subSelected:''};
 let DEBUG = argv.verbose || false;
 let delay = argv.delay || 100;
 let autoit;
-const PERCENTAGE = argv.percentage || 0.1;
 
 const accountsExePath = path.join(__dirname, 'account_list');
 const updateAccounts = () => {
   accounts.data = execSync(accountsExePath).toString().replace(/;$/,"").split(/\s*;\s*/);
-  if(!accounts.selected) accounts.selected = accounts.data[0];
+  if(!accounts.pubSelected) accounts.pubSelected = accounts.data[0];
+  if(!accounts.subSelected) accounts.subSelected = accounts.data[accounts.data.length - 1];
   setTimeout(updateAccounts, 1000);
 }
 
@@ -79,15 +79,37 @@ const sendLogToAll = () => {
   aWss.clients.forEach(ws => ws.send(message));
 };
 
+const sendTelegram = (tradeItem, type) => {
+  // console.log(tradeItem, type);
+  if(tradeItem){
+    //["orderID", "time", "type", "volume", "symbol", "price", "sl", "tp"]
+    let message = accounts.subSelected + ", ";
+    if(tradeItem.marginPrice){
+      message += `Ignore because differ by ${tradeItem.marginPrice}`;
+    } else {
+      message += type === 'trade' ? `${state.copy ? 'Copy' : 'Reverse'} [${tradeItem.type}]` : 'Close';
+    }
+    message += ` ${tradeItem.orderID} Price: ${tradeItem.price}`;
+    if(type == 'trade'){
+      message += ` Volume: ${tradeItem.volume * state.multiply} S/L: ${tradeItem.sl} T/P:${tradeItem.tp}`;
+    }
+    telegram.send(TELEGRAM_GROUPID, message);
+  }
+};
+
 const tradeExePath = path.join(__dirname, 'trade');
 const startAutoIT=()=>{
   stopAutoIT();
 
   const ACTION = state.copy ? "copy" : "reverse";
-  const ACCOUNT_ID = accounts.selected;
+  const PUBLISH_ACCOUNT_ID = accounts.pubSelected;
+  const SUBSCRIBE_ACCOUNT_ID = accounts.subSelected;
+  const MARGIN_LIMIT = state.marginLimit;
+
+  if(PUBLISH_ACCOUNT_ID === SUBSCRIBE_ACCOUNT_ID) return ;
 
   // spawn can use current directory
-  autoit = spawn(tradeExePath, [], {env:{ACTION, ACCOUNT_ID}});
+  autoit = spawn(tradeExePath, [], {env:{ACTION, PUBLISH_ACCOUNT_ID,SUBSCRIBE_ACCOUNT_ID,MARGIN_LIMIT}});
   autoit.stdout.on('data', (data) => {
     const message = data.toString();
     log = {type: 'info', message};
@@ -103,7 +125,7 @@ const startAutoIT=()=>{
   });
   
   autoit.on('close', (code) => {
-    message = `child process exited with code ${code}, on ${accounts.selected}`;
+    message = `child process exited with code ${code}, on ${accounts.SUBSCRIBE_ACCOUNT_ID}`;
     log = {type:'warning', message};
     sendLogToAll();
     console.log(message);   
@@ -112,10 +134,21 @@ const startAutoIT=()=>{
 
 // fork another process
 const childProcessTrade = fork("./extract_text.js", {
-  env: env
+  env: {
+    ...env,
+    PADDING_BOTTOM: 0,
+    DEVICE_WIDTH: 1600,
+    DEVICE_HEIGHT: 900
+  }
 });
+
 const childProcessHistory = fork("./extract_text.js", {
-  env: env
+  env: {
+    ...env,
+    PADDING_BOTTOM: 400,
+    DEVICE_WIDTH: 1600,
+    DEVICE_HEIGHT: 900
+  }
 });
 
 const sendTradeMessage = () => {
@@ -198,8 +231,10 @@ app.get("/accounts", (req,res)=>{
 
 app.post("/accounts", (req,res)=>{
   // restart with new account
-  if(accounts.selected !== req.body.selected){
-    accounts.selected = req.body.selected;
+  const {pubSelected, subSelected} = req.body;
+  if(accounts.pubSelected !== pubSelected || accounts.subSelected !== subSelected){
+    accounts.pubSelected = pubSelected;
+    accounts.subSelected = subSelected;
     if(state.start) {
       startAutoIT();
     }
@@ -212,8 +247,11 @@ app.get("/state", (req,res)=>{
 });
 
 app.post("/state", (req,res)=>{
-  const {copy,start} = req.body;
+  const {copy,start,multiply,marginLimit} = req.body;
   // console.log(copy, start);
+  state.copy = copy;
+  state.multiply = parseFloat(multiply);
+  state.marginLimit = parseFloat(marginLimit);
   if(start !== state.start){
     state.start = start;
     // change status
@@ -223,7 +261,7 @@ app.post("/state", (req,res)=>{
       stopAutoIT();
     }
   }
-  state.copy = copy;
+  
   res.send(state);
 });
 
@@ -273,7 +311,7 @@ app.get("/data", async (req, res,next) => {
       // and we only close copy order that is mapped to this order, otherwise it is meaningless
       filterData = await filterCopyTrade(filterData);
     } else {
-      filterData = modifyVolume(filterData, PERCENTAGE);
+      filterData = modifyVolume(filterData, state.multiply);
     }
 
     res.send(filterData);
@@ -285,12 +323,52 @@ app.get("/data", async (req, res,next) => {
   
 });
 
-app.post("/data", async (req, res) => {
+app.post("/data", async (req, res, next) => {
   // console.log(req.body);
   const {type} = req.query;
-  const {orderID, copyOrderID} = req.body;
+  if(!data[type]) return next();
+  const {orderID, copyOrderID, marginPrice} = req.body;
   // update database
-  await db.put(`${type}.${orderID}`, copyOrderID);
+  const updatedItem = data[type].find(item=>item.orderID == orderID);
+  updatedItem.marginPrice = marginPrice;
+  sendTelegram(updatedItem, type);
+  // now remove this item ?, should not, keep it to track removed item, by update db we know we have done this
+  // but history is ok
+  if(type == 'history')
+    data.history = data.history.filter(item => item.orderID != orderID);
+
+  await db.put(`${type}.${orderID}`, copyOrderID || "");
+  res.send("OK");
+});
+
+//["orderID", "time", "type", "volume", "symbol", "price", "sl", "tp"]
+// Order #2169022 buy 1.00 EURUSD at 1.10984 sl: 0.00000 tp: 0.000000
+app.post("/addTrade", async(req,res)=>{
+  const {tradeData} = req.body;
+  const trades = extractTradeData2(tradeData);
+  // append to list
+  data.trade = [...data.trade, ...trades];
+  res.send("OK");
+});
+
+app.post("/closeTrade", async(req,res)=>{
+  const {tradeData} = req.body;
+  const trades = extractTradeData2(tradeData);
+  // if item in trade not found in tradeData => move to history, remove from trade 
+  const newTrade = [];
+  for(let tradeItem of data.trade) {
+    const index = trades.findIndex(item => item.orderID == tradeItem.orderID);
+    if(index == -1){
+      // not found, for close, it is ok whatever 
+      // if for trade, limit become market, new item is still on top, we still loop through so it is ok 
+      data.history.push(tradeItem);
+    } else {
+      newTrade.push(tradeItem);
+    }
+  }
+  
+  data.trade = newTrade;
+  
   res.send("OK");
 });
 
@@ -298,7 +376,7 @@ const port = argv.port || 80;
 app.listen(port, "0.0.0.0", () => {
   console.log(`Example app listening on ${port}!`);
   // trigger
-  sendTradeMessage();
-  sendHistoryMessage();
+  // sendTradeMessage();
+  // sendHistoryMessage();
   updateAccounts();
 });

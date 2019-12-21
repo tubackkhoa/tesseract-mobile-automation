@@ -11,7 +11,7 @@ class Telegram {
     send (recipient, message) {
         let endpointUrl = this.endpoint
             .replace('%chatId', recipient)
-            .replace('%message', message);
+            .replace('%message', encodeURIComponent(message));
 
         https.get(endpointUrl, (res) => {
             res.on("data", function(chunk) {

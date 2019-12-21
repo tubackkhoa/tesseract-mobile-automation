@@ -29,9 +29,22 @@
       <div class="row">
 
         <div class="col">
-          <select id="accounts"></select>
-          <input type="checkbox" id="copyAction" style="display: none;"  data-toggle="toggle" data-on="Copy" data-offstyle="danger" data-off="Reverse">
-          <input type="checkbox" id="startAction" style="display: none;"  data-toggle="toggle" data-on="Start" data-offstyle="warning" data-off="Stop" >
+          <div class="row">
+
+            <div class="col">
+                <label>Publisher: </label> <select id="pubAccounts" style="width:300px"></select>
+                <label>Subscriber: </label> <select id="subAccounts" style="width:300px"></select>
+             
+            </div>
+            <div class="col">
+              <label>multiply: </label> 
+                <input type="number" value="42" id="multiply" size="10" style="width:50px"/>
+                <label>margin: </label> 
+                <input type="number" value="42" id="marginLimit" size="15" style="width:70px"/>
+              <input type="checkbox" id="copyAction" style="display: none;"  data-height="40" data-size="mini"  data-toggle="toggle" data-on="Copy" data-offstyle="danger" data-off="Reverse">
+              <input type="checkbox" id="startAction" style="display: none;"  data-height="40" data-size="mini"  data-toggle="toggle" data-on="Start" data-offstyle="warning" data-off="Stop" >
+            </div>
+          </div>
         </div>
         <div class="col">
           <div role="alert" id="log">
@@ -39,10 +52,11 @@
         </div>
       </div>
 
-      <h2>Trade (Pending Orders)</h2>
-      <hr />
-      <div class="row">
+     
+      <div class="row mt-4">
         <div class="col-sm">
+          <h2>Trade</h2>
+          <hr />
           <table id="tableTrade" data-toggle="table">
             <thead>
               <tr>
@@ -57,11 +71,25 @@
           </table>
         </div>
         <div class="col-sm">
-          <img id="resultTrade" style="max-width: 100%;" />
+          <h2>Close</h2>
+          <hr />
+          <!-- <img id="resultTrade" style="max-width: 100%;" /> -->
+          <table id="tableHistory" data-toggle="table">
+            <thead>
+              <tr>
+                <th data-field="orderID">Order ID</th>
+                <th data-field="time">Time</th>
+                <th data-field="type">Type</th>
+                <th data-field="volume">Volume</th>
+                <th data-field="symbol">Symbol</th>
+                <th data-field="price">Price</th>
+              </tr>
+            </thead>
+          </table>
         </div>
       </div>
 
-      <h2>History (Pending Orders)</h2>
+      <!-- <h2>History (Pending Orders)</h2>
       <hr />
       <div class="row">
         <div class="col-sm">
@@ -82,7 +110,7 @@
           <img id="resultHistory" style="max-width: 100%;" />
         </div>
       </div>
-    </div>
+    </div> -->
 
     <script>
       var ws = new WebSocket("ws://" + location.host);
@@ -96,8 +124,8 @@
         } else {
           const capitializedType =
             data.type.charAt(0).toUpperCase() + data.type.slice(1);
-          document.querySelector("#result" + capitializedType).src =
-            "/" + data.type + ".png?t=" + Date.now();
+          // document.querySelector("#result" + capitializedType).src =
+          //   "/" + data.type + ".png?t=" + Date.now();
           var tableEl = $("#table" + capitializedType);
           tableEl.bootstrapTable("load", data.data);
         }
@@ -107,24 +135,31 @@
 
         fetch('/accounts').then(ret=>ret.json()).then(function(accounts){
           accounts.data.forEach(function(item){
-            let selected = item === accounts.selected ? 'selected' : '';
-            $('#accounts').append(`<option ${selected} value="${item}">${item}</option>`);
+            let pubSelected = item === accounts.pubSelected ? 'selected' : '';
+            let subSelected = item === accounts.subSelected ? 'selected' : '';
+            $('#pubAccounts').append(`<option ${pubSelected} value="${item}">${item}</option>`);
+            $('#subAccounts').append(`<option ${subSelected} value="${item}">${item}</option>`);
           });
          
-          $('#accounts').change(function(){
+          $('#pubAccounts,#subAccounts').change(function(){
+            const data = {};
+            data[$(this).attr('id') == 'pubAccounts' ? 'pubSelected' : 'subSelected'] = $(this).val();
             fetch('/accounts', {
               method: 'post',
               headers: {
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({selected: $(this).val()})
+              body: JSON.stringify(data)
             });
           });
+
         });
 
         fetch('/state').then(ret=>ret.json()).then(function(state){
           let copy = state.copy;
           let start = state.start;
+          let multiply = state.multiply;
+          let marginLimit = state.marginLimit;
 
           const update = function() {
             fetch('/state', {
@@ -132,7 +167,7 @@
               headers: {
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({copy:copy, start:start})
+              body: JSON.stringify({copy:copy, start:start,multiply:multiply,marginLimit:marginLimit})
             });
           };
 
@@ -149,6 +184,17 @@
             start = !$(this).prop('checked');
             update();
           });
+
+          $('#multiply').val(multiply).blur(function(){
+            multiply = $(this).val();
+            update();
+          });
+
+          $('#marginLimit').val(marginLimit).blur(function(){
+            marginLimit = $(this).val();
+            update();
+          });
+
         })
     
       });

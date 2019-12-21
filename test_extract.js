@@ -14,13 +14,14 @@ if (platform === "win32") {
   };
 }
 
-env.PADDING_BOTTOM = 400;
+
 
 const { fork } = require("child_process");
 const argv = require("yargs").argv;
 
 // 250: emulator-5564:history.png, 300, emulator-5554, trade.png
 
+env.PADDING_BOTTOM = argv.bottom || 0;
 // fork another process
 const childProcess = fork("./extract_text.js", {
   env: env

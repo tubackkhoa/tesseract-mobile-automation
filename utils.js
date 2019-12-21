@@ -1,3 +1,4 @@
+const https = require('https');
 
 class MyRegExp extends RegExp {
     // implement matchAll
@@ -14,6 +15,9 @@ class MyRegExp extends RegExp {
 const tradeHeaders = ["orderID", "time", "type", "volume", "symbol", "price", "sl", "tp"];
 const floatGroup = `([0-9]+\\.[0-9]+)`;
 const reTrade = new MyRegExp(`(\\d+)\\s+([\\d\\.]+\\s*[\\d\\:]+)\\s+((?:sell|buy)(?:\\s+(?:limit|stop))?)\\s+${floatGroup}\\s+([A-Z]+)\\s+${floatGroup}(?:\\s+${floatGroup}\\s+${floatGroup})?`, 'g');
+// Order #2169022 buy 1.00 EURUSD at 1.10984 sl: 0.00000 tp: 0.000000
+const tradeHeadersData = ["orderID", "type", "volume", "symbol", "price", "sl", "tp"];
+const reTradeData = new MyRegExp(`Order\\s+#(\\d+)\\s+((?:sell|buy)(?:\\s+(?:limit|stop))?)\\s+${floatGroup}\\s+([A-Z]+)\\s+at\\s+${floatGroup}\\s+sl:\\s+${floatGroup}\\s+tp:\\s+${floatGroup}`, 'g');
 
 const toObject = (names, match) => {
     const values = match.slice(1, names.length + 1)
@@ -30,6 +34,11 @@ const extractTradeData = rawData => {
     return matches.map(match=> toObject(tradeHeaders, match));
 };
 
+const extractTradeData2 = rawData => {
+    const matches = rawData.replace(/[_-]/g,'').matchAll(reTradeData);
+    return matches.map(match=> toObject(tradeHeadersData, match));
+};
+
 const modifyVolume = (tradeData, percentage = 1) => {
     return tradeData.map(item=>({
       ...item,
@@ -38,6 +47,23 @@ const modifyVolume = (tradeData, percentage = 1) => {
   };
 
 
+class Telegram {
 
+    constructor(token){
+        this.endpoint = `https://api.telegram.org/bot${token}/sendMessage?chat_id=%chatId&text=%message`;
+    }
 
-module.exports = {extractTradeData,modifyVolume}
+    send (recipient, message) {
+        let endpointUrl = this.endpoint
+            .replace('%chatId', recipient)
+            .replace('%message', message);
+
+        https.get(endpointUrl, (res) => {
+            res.on("data", function(chunk) {
+                console.log("BODY: " + chunk);
+            });
+        });
+    }
+}
+
+module.exports = {extractTradeData, extractTradeData2, modifyVolume, Telegram}

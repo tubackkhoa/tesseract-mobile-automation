@@ -7,7 +7,7 @@
 #include <GuiComboBox.au3>
 #include <HTTP.au3>
 #include <JSON.au3>
-;~ #include 'scriptingdic.au3'
+#include <Array.au3>
 ;~ #include <Array.au3> ; Needed only for _ArrayDisplay, and not required by the lib
 
 ;~ Global $priceObj = _InitDictionary()
@@ -46,26 +46,38 @@ Func NumberControl_SetText($winTitle, $winText, $control, $value)
    ControlSend($winTitle, $winText, $control, $value)
 EndFunc
 
- Func GetOrderID($list, $ind)
-   Local $count = _GUICtrlListView_GetItemCount($list)
+
+Func GetOrderData($list, $ind)
    WinClose("Order")
    _GUICtrlListView_ClickItem($list, $ind, "left", False, 2)
    Local $hOrderWin = WinWait("Order", "", 1)
    Local $sText = WinGetTitle($hOrderWin)
+   Return $sText
+EndFunc
+
+Func GetOrderIDFromData($sText)
    Local $aArray = StringRegExp($sText, '#(\d+)', $STR_REGEXPARRAYFULLMATCH)
    If UBound($aArray) == 2 Then
 	  Local $copyOrderID = $aArray[1]
 	  return $copyOrderID
    EndIf
-
-   return ""
+   Return ""
 EndFunc
 
-Func ClosePrice($list, $historyURL)
+Func GetOrderID($list, $ind)
+   Local $sText = GetOrderData($list, $ind)
+   Return GetOrderIDFromData($sText)
+EndFunc
+
+Func ClosePrice($list, $historyURL, ByRef $marketNum, ByRef $limitNum)
    Local $historyData = _HTTP_Get($historyURL)
    local $historyObj = Json_Decode($historyData)
    Local $count = _GUICtrlListView_GetItemCount($list)
 ;~    ConsoleWrite("Total " & $count & @LF)
+   $marketNum = 0
+   $limitNum = 0
+   Local $isMarket = True
+
    For $ind = 0 To $count - 1 Step 1
 
 	  WinClose("Order")
@@ -73,22 +85,28 @@ Func ClosePrice($list, $historyURL)
 	  Local $hOrderWin = WinWait("Order", "", 1)
 	  Local $sText = WinGetTitle($hOrderWin)
 
-;~ 	  If Not $sText Then ContinueLoop
+	  If $sText = "" Then
+		 $isMarket = False
+		 ContinueLoop
+	  EndIf
+
+	  If $isMarket Then
+		 $marketNum += 1
+	  Else
+		 $limitNum += 1
+	  EndIf
+
 ;~ 	  ConsoleWrite($ind & ") " & $sText & @LF)
-	  Local $aArray = StringRegExp($sText, '#(\d+)', $STR_REGEXPARRAYFULLMATCH)
-	  If UBound($aArray) == 2 Then
-		 Local $copyOrderID = $aArray[1]
-		 Local $orderID = HasCopyOrder($historyObj, $copyOrderID)
-		 If Not $orderID = "" Then
-			Local $aPos = WinGetPos($hOrderWin)
+	  Local $copyOrderID = GetOrderIDFromData($sText)
+	  Local $orderID = HasCopyOrder($historyObj, $copyOrderID)
+	  If Not $orderID = "" Then
+		 Local $aPos = WinGetPos($hOrderWin)
 ;~ 			Delete or Close button here
-			MouseClick("left", $aPos[0] + 630, $aPos[1] + 293, 1)
-			;~ 	   update command
-			_HTTP_Post($historyURL, "orderID=" & URLEncode($orderID) & "&copyOrderID=" & $copyOrderID)
-			ConsoleWrite("close price: " & $aArray[1] & @LF)
-			Sleep(200)
-		 EndIf
-;~ 		 ExitLoop
+		 MouseClick("left", $aPos[0] + 630, $aPos[1] + 293, 1)
+		 ;~ 	   update command
+		 _HTTP_Post($historyURL, "orderID=" & URLEncode($orderID) & "&copyOrderID=" & $copyOrderID)
+		 ConsoleWrite("close price: " & $aArray[1] & @LF)
+		 Sleep(200)
 	  EndIf
 
    Next
@@ -177,22 +195,112 @@ Func ReversePrice(ByRef $price, ByRef $sl, ByRef $tp, $orderType, $mSellPrice, $
 
 EndFunc
 
-Func Trade($tradeURL, $historyURL, $sAccountID, $sAction)
+Global $pubListCount = 0
+Global $pubMarketNum = -1
+Global $pubLimitNum = -1
+
+Func UpdateAndGetData($list, $count)
+   $pubMarketNum = 0
+   $pubLimitNum = 0
+   $pubListCount = $count
+   Local $isMarket = True
+   Local $sData[$count-1] = []
+;~    ConsoleWrite("count: " & $count & @LF)
+   For $ind = 0 To $count - 1 Step 1
+	  WinClose("Order")
+	  _GUICtrlListView_ClickItem($list, $ind, "left", False, 2)
+	  Local $hOrderWin = WinWait("Order", "", 1)
+	  Local $sText = WinGetTitle($hOrderWin)
+
+	  If $sText = "" Then
+		 $isMarket = False
+		 ContinueLoop
+	  EndIf
+
+	  If $isMarket Then
+		 $pubMarketNum += 1
+	  Else
+		 $pubLimitNum += 1
+	  EndIf
+
+	  _ArrayPush($sData, $sText)
+   Next
+   return $sData
+EndFunc
+
+Func DoCrawl($URL, $sPubAccountID)
+;~    because it is not meaningful when we copy all past trades
+;~    If $pubListCount change => update publish count, post to server, then return True, else return False
+;~   Should watch fast, The change could be: length > 1 => new trade (first if market, or number of market +1 if limit), by store
+;~  number of market, and last orderid, we can figure out change, if last orderid is differ => we get it
+;~  incase length < 1 go to history and get the first one, that should be enough, instead of loop through because human only process 1 by 1
+   Local $hWin = WinWait("[TITLE:" & $sPubAccountID & "; CLASS:MetaQuotes::MetaTrader::4.00]", "", 10)
+   Local $list = ControlGetHandle($hWin, "", "[ID:33217]")
+   Local $count = _GUICtrlListView_GetItemCount($list)
+;~    ConsoleWrite("count: " & $count & " current count: " & $pubListCount & " win: " & "[TITLE:" & $sPubAccountID & "; CLASS:MetaQuotes::MetaTrader::4.00]" & @LF)
+   If $pubListCount = $count Then
+	  Return False
+   EndIf
+
+;~    WinActivate($hWin)
+
+   ;~ 	  First time, update
+   If $pubMarketNum = -1 Then
+	  UpdateAndGetData($list, $count)
+	  Return False
+   EndIf
+
+;~    ConsoleWrite("count: " & $count & " $pubListCount " & $pubListCount & " $pubMarketNum: " & $pubMarketNum & @LF)
+;~    Return False
+
+   If $count > $pubListCount Then
+	  Local $oldPubMarketNum = $pubMarketNum
+	  Local $listData = UpdateAndGetData($list, $count)
+	  Local $orderData
+
+	  If $pubMarketNum > $oldPubMarketNum Then
+		 $orderData = $listData[0]
+	  Else
+		 $orderData = $listData[$pubMarketNum + 1]
+	  EndIf
+;~ 	  add orderData to server to know which is added
+	  _HTTP_Post($URL & "/addTrade", "tradeData=" & URLEncode($orderData))
+   Else
+;~ 	  loop again to find where then update, server will know which is disappear
+	  Local $listData = UpdateAndGetData($list, $count)
+	  Local $orderData = _ArrayToString($listData, @LF)
+;~ 	  post to server this to know which is deleted
+	  _HTTP_Post($URL & "/closeTrade", "tradeData=" & URLEncode($orderData))
+   EndIf
+
+   Return True
+
+EndFunc
+
+Func Trade($URL, $sPubAccountID, $sSubAccountID, $sAction, $marginLimit)
    ; Retrieve the position as well as height and width of the active window.
 ;~    Local $hWin = WinWait("[CLASS:MetaQuotes::MetaTrader::4.00]", "", 10)
-   Local $hWin = WinWait("[TITLE:" & $sAccountID & "; CLASS:MetaQuotes::MetaTrader::4.00]", "", 10)
+   Local $shouldDoTrade = DoCrawl($URL, $sPubAccountID)
+   If Not $shouldDoTrade Then
+	  Return
+   EndIf
+   Local $tradeURL = $URL & "/data?type=trade"
+   Local $historyURL = $URL & "/data?type=history"
+   Local $hWin = WinWait("[TITLE:" & $sSubAccountID & "; CLASS:MetaQuotes::MetaTrader::4.00]", "", 10)
 ;~    ConsoleWrite(WinGetTitle($hWin) & @LF)
-   WinActivate($hWin)
+;~    WinActivate($hWin)
 
    Local $hwnd = ControlGetHandle($hWin, "", "[CLASS:ToolbarWindow32; INSTANCE:4]")
-   Local $list = ControlGetHandle($hWin, "", "[CLASS:SysListView32; INSTANCE:1]")
+   Local $list = ControlGetHandle($hWin, "", "[ID:33217]")
 
+   Local $marketNum
+   Local $limitNum
+
+   ClosePrice($list, $historyURL, $marketNum, $limitNum)
+
+;~    sleep a little bit before doing trade
    Local $tradeData = _HTTP_Get($tradeURL)
    local $tradeObj = Json_Decode($tradeData)
-
-;~ 	; test
-;~ 	$priceObj.Add("1.10756", True)
-
 
    Local $i = 0
    While 1
@@ -219,32 +327,50 @@ Func Trade($tradeURL, $historyURL, $sAccountID, $sAction)
 
 	  Local $hOrderWin = WinWait("Order", "", 10)
 
-	  ComboBox_SelectString($hOrderWin, "", "[CLASS:ComboBox; INSTANCE:2]", $volume)
+;~ 	  ComboBox_SelectString($hOrderWin, "", "[CLASS:ComboBox; INSTANCE:2]", $volume)
 	  ComboBox_SelectString($hOrderWin, "", "[CLASS:ComboBox; INSTANCE:1]", $symbol)
+	  NumberControl_SetText($hOrderWin, "", "[CLASS:Edit; INSTANCE:1]", $volume)
 
 
 	  Local $pricePair = ControlGetText($hOrderWin, "", "[CLASS:Static; INSTANCE:13]")
 	  Local $priceArray = StringRegExp($pricePair, '([\d\.]+)\s*/\s*([\d\.]+)', $STR_REGEXPARRAYFULLMATCH)
 	  Local $mSellPrice = Number($priceArray[1])
 	  Local $mBuyPrice =  Number($priceArray[2])
+	  Local $isLimit = True
+
+	  ConsoleWrite("Do trade: symbol: " & $symbol & " type: " & $orderType & " volume: " & $volume & " price: " & $price & @LF)
 
 ;~ 	  If is market order
 	  If $orderType = "Sell" Or $orderType = "Buy" Then
+;~ 		 update stop lost and take profit
+		 NumberControl_SetText($hOrderWin, "", "[CLASS:Edit; INSTANCE:2]", $sl)
+		 NumberControl_SetText($hOrderWin, "", "[CLASS:Edit; INSTANCE:3]", $tp)
+
 		 Local $mPrice = Number($price)
 		 Local $aPos = WinGetPos($hOrderWin)
+		 Local $canTrade = False
+;~ 		 use margin 1.5%
 		 If $orderType = "Sell" Then
-			Local $marginPrice = Abs(Round( $mSellPrice - $mPrice,4))
-			If $marginPrice < 0.0005 Then
-			   ConsoleWrite("Market execution: sell with margin Price " & $marginPrice & @LF)
+			Local $marginPrice = Abs(Round(($mSellPrice - $mPrice)/$mPrice,4))
+			If $marginPrice < $marginLimit Then
 			   MouseClick("left", $aPos[0] + 440, $aPos[1] + 270, 1)
+			   $canTrade = True
 			EndIf
 		 Else
-			Local $marginPrice = Abs(Round($mBuyPrice - $mPrice,4))
-			If $marginPrice < 0.0005 Then
-			   ConsoleWrite("Market execution: buy with margin Price " & $marginPrice & @LF)
+			Local $marginPrice = Abs(Round(($mBuyPrice - $mPrice)/$mPrice,4))
+			If $marginPrice < $marginLimit Then
 			   MouseClick("left", $aPos[0] + 640, $aPos[1] + 270, 1)
+			   $canTrade = True
 			EndIf
 		 EndIf
+
+		 If Not $canTrade Then
+			_HTTP_Post($tradeURL, "orderID=" & URLEncode($orderID) & "&marginPrice=" & $marginPrice)
+			ConsoleWrite("Ignore trade: symbol: " & $symbol & " type: " & $orderType & " volume: " & $volume & " price: " & $price & " with margin Price " & $marginPrice & @LF)
+		 Else
+			ConsoleWrite("Market execution: " & $orderType & " with margin Price " & $marginPrice & @LF)
+		 EndIf
+		 $isLimit = False
 	  Else
 ;~ 		 can be sell buy stop/limit
 		 ComboBox_SelectString($hOrderWin, "", "[CLASS:ComboBox; INSTANCE:3]", "Pending Order")
@@ -280,11 +406,11 @@ Func Trade($tradeURL, $historyURL, $sAccountID, $sAction)
 	  Local $watchDog = 0
 	  While 1
 		 If _GUICtrlListView_GetItemCount($list) > $count Then
-;~ 			must be order by last order is on top :D
-			$copyOrderID = GetOrderID($list, 0)
-			If $copyOrderID = "" Then
-			   ; may be the second one
-			   $copyOrderID = GetOrderID($list, 1)
+;~ 			must be 0 if is market, otherwise is $marketNum + 1
+			If $isLimit Then
+			   $copyOrderID = GetOrderID($list, $marketNum + 1)
+			Else
+			   $copyOrderID = GetOrderID($list, 0)
 			EndIf
 			ExitLoop
 		 EndIf
@@ -304,29 +430,26 @@ Func Trade($tradeURL, $historyURL, $sAccountID, $sAction)
 	  $i += 1
 	WEnd
 
-;~    sleep a little bit before closing
-   Sleep(200)
-
-   ClosePrice($list, $historyURL)
-
  EndFunc
 
 
 
-;~ Local $hWin = WinWait("[CLASS:MetaQuotes::MetaTrader::4.00]", "", 10)
-;~ Local $hwnd = ControlGetHandle($hWin, "", "[CLASS:SysListView32; INSTANCE:1]")
 
-;~ WinActivate($hWin)
-
-;~ Local $copyOrderID = GetLastOrderID($hwnd)
-;~ ConsoleWrite("$copyOrderID: " & $copyOrderID & @LF)
-
-Local $sAccountID = EnvGet("ACCOUNT_ID")
+Local $sPubAccountID = EnvGet("PUBLISH_ACCOUNT_ID")
+Local $sSubAccountID = EnvGet("SUBSCRIBE_ACCOUNT_ID")
 Local $sAction = EnvGet("ACTION")
-ConsoleWrite("Account ID : " & $sAccountID & " ACTION: " & $sAction & @LF)
+Local $marginLimit = Number(EnvGet("MARGIN_LIMIT"))
+
+;~ Local $sPubAccountID = "1003413: SMFX-Demo - Demo Account"
+;~ Local $sSubAccountID = "1003415: SMFX-Demo - Demo Account"
+;~ Local $sAction = "copy"
+;~ Local $marginLimit = "0.015"
+
+
+ConsoleWrite("Account ID : " & $sSubAccountID & " ACTION: " & $sAction & " MARGIN_LIMIT: " & $marginLimit & @LF)
 
 While 1
-   Trade("http://localhost/data?type=trade", "http://localhost/data?type=history", $sAccountID, $sAction)
+   Trade("http://localhost", $sPubAccountID, $sSubAccountID, $sAction, $marginLimit)
 ;~    before continuing
-   Sleep(1000)
+   Sleep(200)
 WEnd

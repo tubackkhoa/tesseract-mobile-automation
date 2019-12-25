@@ -121,7 +121,11 @@ const sendTelegram = (tradeItem, type) => {
     if(type == 'trade'){
       message += ` Volume: ${Math.round(tradeItem.volume * state.multiply)} S/L: ${tradeItem.sl} T/P:${tradeItem.tp}`;
     }
-    telegram.send(TELEGRAM_GROUPID, message);
+    // update log
+    telegram.send(TELEGRAM_GROUPID, message, ret=>{
+      log = {type: 'info', message:ret};
+      sendLogToAll();
+    });
   }
 };
 
@@ -146,14 +150,14 @@ const startAutoIT=()=>{
     const message = data.toString();
     log = {type: 'info', message};
     sendLogToAll();
-    console.log(`stdout: ${message}`);
+    // console.log(`stdout: ${message}`);
   });
   
   autoit.stderr.on('data', (data) => {
     message = data.toString();
     log =  {type: 'danger', message};
     sendLogToAll();
-    console.error(`stderr: ${message}`);
+    // console.error(`stderr: ${message}`);
   });
   
   autoit.on('close', (code) => {

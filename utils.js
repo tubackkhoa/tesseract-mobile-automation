@@ -53,14 +53,15 @@ class Telegram {
         this.endpoint = `https://api.telegram.org/bot${token}/sendMessage?chat_id=%chatId&text=%message`;
     }
 
-    send (recipient, message) {
+    send (recipient, message, callback) {
         let endpointUrl = this.endpoint
             .replace('%chatId', recipient)
             .replace('%message', message);
 
         https.get(endpointUrl, (res) => {
             res.on("data", function(chunk) {
-                console.log("BODY: " + chunk);
+                // console.log("BODY: " + chunk);
+                callback && callback(chunk);
             });
         });
     }

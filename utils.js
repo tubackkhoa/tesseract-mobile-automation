@@ -39,10 +39,10 @@ const extractTradeData2 = rawData => {
     return matches.map(match=> toObject(tradeHeadersData, match));
 };
 
-const modifyVolume = (tradeData, percentage = 1) => {
+const modifyVolume = (tradeData, percentage = 1, minimum = 0.005) => {
     return tradeData.map(item=>({
       ...item,
-      volume : (item.volume * percentage).toString()
+      volume : Math.max(minimum, item.volume * percentage).toFixed(4).toString()
     }))
   };
 

@@ -32,7 +32,7 @@
           <div class="row">
 
             <div class="col">
-                <label>Publisher: </label> <select id="pubAccounts" style="width:300px"></select>
+                <!-- <label>Publisher: </label> <select id="pubAccounts" style="width:300px"></select> -->
                 <label>Subscriber: </label> <select id="subAccounts" style="width:300px"></select>
              
             </div>
@@ -54,6 +54,10 @@
 
      
       <div class="row mt-4">
+        <div class="w-100">
+          <h2>Publisher</h2>
+          <hr />
+        </div>
         <div class="col-sm">
           <h2>Trade</h2>
           <hr />
@@ -61,6 +65,8 @@
             <thead>
               <tr>
                 <th data-field="orderID">Order ID</th>
+                <th data-field="status">Status</th>
+                <th data-field="copyOrderID">Follow Order ID</th>
                 <th data-field="time">Time</th>
                 <th data-field="type">Type</th>
                 <th data-field="volume">Volume</th>
@@ -78,11 +84,37 @@
             <thead>
               <tr>
                 <th data-field="orderID">Order ID</th>
+                <th data-field="status">Status</th>
+                <th data-field="copyOrderID">Follow Order ID</th>
                 <th data-field="time">Time</th>
                 <th data-field="type">Type</th>
                 <th data-field="volume">Volume</th>
                 <th data-field="symbol">Symbol</th>
                 <th data-field="price">Price</th>
+              </tr>
+            </thead>
+          </table>
+        </div>
+      </div>
+
+
+      <div class="row mt-4">
+        <div class="w-100">
+          <h2>Subscriber</h2>
+          <hr />
+        </div>
+        <div class="col-sm">
+          <!-- <img id="resultTrade" style="max-width: 100%;" /> -->
+          <table id="tableInit" data-toggle="table">
+            <thead>
+              <tr>
+                <th data-field="orderID">Order ID</th>
+                <th data-field="type">Type</th>
+                <th data-field="volume">Volume</th>
+                <th data-field="symbol">Symbol</th>
+                <th data-field="price">Price</th>
+                <th data-field="sl">S / L</th>
+                <th data-field="tp">T / P</th>
               </tr>
             </thead>
           </table>
@@ -113,6 +145,14 @@
     </div> -->
 
     <script>
+
+      function fixData(data){
+        return data.map(function(item){
+          item.status = item.status || 'Pending';
+          return item;
+        });
+      }
+
       var ws = new WebSocket("ws://" + location.host);
       ws.onopen = function() {
         console.log("websocket is connected ...");
@@ -127,7 +167,7 @@
           // document.querySelector("#result" + capitializedType).src =
           //   "/" + data.type + ".png?t=" + Date.now();
           var tableEl = $("#table" + capitializedType);
-          tableEl.bootstrapTable("load", data.data);
+          tableEl.bootstrapTable("load", fixData(data.data));
         }
       };
 
@@ -135,23 +175,11 @@
 
         fetch('/accounts').then(ret=>ret.json()).then(function(accounts){
           accounts.data.forEach(function(item){
-            let pubSelected = item === accounts.pubSelected ? 'selected' : '';
+            // let pubSelected = item === accounts.pubSelected ? 'selected' : '';
             let subSelected = item === accounts.subSelected ? 'selected' : '';
-            $('#pubAccounts').append(`<option ${pubSelected} value="${item}">${item}</option>`);
+            // $('#pubAccounts').append(`<option ${pubSelected} value="${item}">${item}</option>`);
             $('#subAccounts').append(`<option ${subSelected} value="${item}">${item}</option>`);
-          });
-         
-          $('#pubAccounts,#subAccounts').change(function(){
-            const data = {};
-            data[$(this).attr('id') == 'pubAccounts' ? 'pubSelected' : 'subSelected'] = $(this).val();
-            fetch('/accounts', {
-              method: 'post',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(data)
-            });
-          });
+          });         
 
         });
 
@@ -182,7 +210,21 @@
 
           $('#startAction').show().change(function() {
             start = !$(this).prop('checked');
-            update();
+
+            fetch('/accounts', {
+              method: 'post',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                // pubSelected: $('#pubAccounts').val(),
+                subSelected: $('#subAccounts').val()
+              })
+            }).then(()=>{
+              update();
+            });
+         
+            
           });
 
           $('#multiply').val(multiply).blur(function(){

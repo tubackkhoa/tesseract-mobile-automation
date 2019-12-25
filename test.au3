@@ -112,18 +112,25 @@ EndFunc
 ;~ ReversePrice($price, $sl, $tp, $orderType, $mSellPrice, $mBuyPrice)
 ;~ ConsoleWrite($orderType & " Market: " & $mSellPrice & " / " & $mBuyPrice & " price: " & $price & " Stop Loss: " & $sl & " Take Profit: " & $tp & @LF)
 
-$count = 2
-Local $avArrayTarget[] = []
-_ArrayPush($avArrayTarget, "hehe")
-_ArrayPush($avArrayTarget, "hihi")
-$sText = _ArrayToString($avArrayTarget, @LF)
-ConsoleWrite($sText & $avArrayTarget[1] & @LF)
+;~ $count = 2
+;~ Local $avArrayTarget[] = []
+;~ _ArrayPush($avArrayTarget, "hehe")
+;~ _ArrayPush($avArrayTarget, "hihi")
+;~ $sText = _ArrayToString($avArrayTarget, @LF)
+;~ ConsoleWrite($sText & $avArrayTarget[1] & @LF)
 
-;~ $winTitle = "[TITLE:1003413: SMFX-Demo - Demo Account; CLASS:MetaQuotes::MetaTrader::4.00]"
+;~  sort by asc, check market num, limit num, for the first time
+;~  make sure asc order
+;~  if add => last item, update index
+;~  if delete => remove index
 
-;~ Local $hWin = WinWait($winTitle, "", 10)
-;~ Local $list = ControlGetHandle($hWin, "", "[ID:33217]")
-;~ Local $count = _GUICtrlListView_GetItemCount($list)
-;~ $data = GetOrderData($list,1)
-;~ $data = GetOrderData($list,0)
-;~ ConsoleWrite("count: " & $count & " $data: " & $data & @LF)
+$winTitle = "[TITLE:1003415: SMFX-Demo - Demo Account; CLASS:MetaQuotes::MetaTrader::4.00]"
+
+Local $hWin = WinWait($winTitle, "", 10)
+Local $hWnd = ControlGetHandle($hWin, "", "[CLASS:SysHeader32; INSTANCE:1]")
+ControlClick($hwnd, "", "","left", 1, 300, 10)
+ControlClick($hwnd, "", "","left", 1, 60, 10)
+
+;~ Local $data = _GUICtrlListView_GetContents($hWnd)
+
+;~ ConsoleWrite("$data: " & $data & @LF)

@@ -27,7 +27,7 @@ const app = express();
 const expressWs = require("express-ws")(app);
 const bodyParser = require("body-parser");
 const path = require('path');
-const {extractTradeData, modifyVolume, Telegram} = require('./utils');
+const {extractTradeData, extractTradeData2, modifyVolume, Telegram} = require('./utils');
 
 const telegram = new Telegram(argv.telegramToken || '1069055490:AAF6X4Cq-QQrNvIRTn400qjEwFpWFCY7gok');
 const TELEGRAM_GROUPID = argv.chatId || '-308224929';
@@ -36,19 +36,22 @@ app.use(bodyParser.json()); // support json encoded bodies
 app.use(bodyParser.urlencoded({ extended: true })); // support encoded bodies
 
 let stop = false;
-let data = { trade: [], history: [] };
+let data = { trade: [], history: [], init: [] };
 let log = {};
 let state = {copy:true, start: false,multiply:0.1,marginLimit:0.015};
-let accounts = {data:[],pubSelected:'',subSelected:''};
+let accounts = {data:[],
+  // pubSelected:'',
+subSelected:''};
 let DEBUG = argv.verbose || false;
+let MAX_ORDER = argv.maxOrder || 20;
 let delay = argv.delay || 100;
 let autoit;
 
 const accountsExePath = path.join(__dirname, 'account_list');
 const updateAccounts = () => {
   accounts.data = execSync(accountsExePath).toString().replace(/;$/,"").split(/\s*;\s*/);
-  if(!accounts.pubSelected) accounts.pubSelected = accounts.data[0];
-  if(!accounts.subSelected) accounts.subSelected = accounts.data[accounts.data.length - 1];
+  // if(!accounts.pubSelected) accounts.pubSelected = accounts.data[0];
+  if(!accounts.subSelected) accounts.subSelected = accounts.data[0];
   setTimeout(updateAccounts, 1000);
 }
 
@@ -61,13 +64,36 @@ const stopAutoIT=()=>{
 
 const aWss = expressWs.getWss("/");
 
-const sendDataToAll = (type) => {
-  const message = JSON.stringify({ data: data[type], type: type });
+const filterDataFromType = (type) => {
+  let filterData = data[type];
+    // for(let item of data[type]) {
+    //   const copyOrderID = await getCopyOrderID(type, item.orderID);
+    //   // console.log(type, item.orderID,copyOrderID);
+    //   // not processed
+    //   if(!copyOrderID) filterData.push(item);
+    // }
+  
+  if(type === 'history'){
+    // with history, it means that we need to close the order, 
+    // and we only close copy order that is mapped to this order, otherwise it is meaningless
+    // filterData = await filterCopyTrade(filterData);
+  } else {
+    filterData = modifyVolume(filterData, state.multiply);
+  }
+
+    // res.send(filterData);
+    return filterData;
+};
+
+const sendDataToAll =  (type) => {
+  const filterData =  filterDataFromType(type);
+  const message = JSON.stringify({ data: filterData, type: type });
   aWss.clients.forEach(ws => ws.send(message));
 };
 
-const sendData = (ws, type) => {
-  ws.send(JSON.stringify({ data: data[type], type: type }));
+const sendData =  (ws, type) => {
+  const filterData =  filterDataFromType(type);
+  ws.send(JSON.stringify({ data: filterData, type: type }));
 };
 
 const sendLog = (ws) => {
@@ -86,12 +112,14 @@ const sendTelegram = (tradeItem, type) => {
     let message = accounts.subSelected + ", ";
     if(tradeItem.marginPrice){
       message += `Ignore because differ by ${tradeItem.marginPrice}`;
+    } else if(!tradeItem.copyOrderID){
+      message += `Ignore because price is too close to market price ${tradeItem.price}`;
     } else {
       message += type === 'trade' ? `${state.copy ? 'Copy' : 'Reverse'} [${tradeItem.type}]` : 'Close';
     }
     message += ` ${tradeItem.orderID} Price: ${tradeItem.price}`;
     if(type == 'trade'){
-      message += ` Volume: ${tradeItem.volume * state.multiply} S/L: ${tradeItem.sl} T/P:${tradeItem.tp}`;
+      message += ` Volume: ${Math.round(tradeItem.volume * state.multiply)} S/L: ${tradeItem.sl} T/P:${tradeItem.tp}`;
     }
     telegram.send(TELEGRAM_GROUPID, message);
   }
@@ -102,14 +130,18 @@ const startAutoIT=()=>{
   stopAutoIT();
 
   const ACTION = state.copy ? "copy" : "reverse";
-  const PUBLISH_ACCOUNT_ID = accounts.pubSelected;
+  // const PUBLISH_ACCOUNT_ID = accounts.pubSelected;
   const SUBSCRIBE_ACCOUNT_ID = accounts.subSelected;
   const MARGIN_LIMIT = state.marginLimit;
 
-  if(PUBLISH_ACCOUNT_ID === SUBSCRIBE_ACCOUNT_ID) return ;
+  // console.log(PUBLISH_ACCOUNT_ID, SUBSCRIBE_ACCOUNT_ID);
+
+  // if(PUBLISH_ACCOUNT_ID === SUBSCRIBE_ACCOUNT_ID) return ;
 
   // spawn can use current directory
-  autoit = spawn(tradeExePath, [], {env:{ACTION, PUBLISH_ACCOUNT_ID,SUBSCRIBE_ACCOUNT_ID,MARGIN_LIMIT}});
+  autoit = spawn(tradeExePath, [], {env:{ACTION, 
+    // PUBLISH_ACCOUNT_ID,
+    SUBSCRIBE_ACCOUNT_ID,MARGIN_LIMIT}});
   autoit.stdout.on('data', (data) => {
     const message = data.toString();
     log = {type: 'info', message};
@@ -136,7 +168,7 @@ const startAutoIT=()=>{
 const childProcessTrade = fork("./extract_text.js", {
   env: {
     ...env,
-    PADDING_BOTTOM: 0,
+    PADDING_BOTTOM: 400,
     DEVICE_WIDTH: 1600,
     DEVICE_HEIGHT: 900
   }
@@ -170,41 +202,103 @@ const sendHistoryMessage = () => {
 };
 
 // listen for messages from forked childProcess
-childProcessTrade.on("message", message => {
-  update(message.rawData, "trade");
+childProcessTrade.on("message", async message => {
+  await update(message.rawData, "trade");
   setTimeout(sendTradeMessage, delay);
 });
 
 // listen for messages from forked childProcess
-childProcessHistory.on("message", message => {
-  update(message.rawData, "history");
+childProcessHistory.on("message", async message => {
+  await update(message.rawData, "history");
   setTimeout(sendHistoryMessage, delay);
 });
 
 
-const filterCopyTrade = async tradeData => {
-  const filterData = [];
-  for(let item of tradeData) {
-    const copyOrderID = await getCopyOrderID('trade', item.orderID);
-    // has entered 
-    if(copyOrderID) filterData.push({...item,copyOrderID});
+// const filterCopyTrade = async tradeData => {
+//   const filterData = [];
+//   for(let item of tradeData) {
+//     const copyOrderID = await getCopyOrderID('trade', item.orderID);
+//     // has entered 
+//     if(copyOrderID) filterData.push({...item,copyOrderID});
+//   }
+//   return filterData;
+// }
+
+const updateCopyOrderID = async(trades, type) => {
+  const newTrade = [];
+  for(let item of trades) {
+    if(!item.copyOrderID){
+      item.copyOrderID = await getCopyOrderID(type, item.orderID);
+      if(item.copyOrderID){
+        // if(type == "trade"){
+        //   item.status = "processed";
+        // } else {
+        //   // ignore
+        //   continue;
+        // }
+        continue;
+      } else if (type == "history") {
+        item.copyOrderID = await getCopyOrderID("trade", item.orderID);
+      }
+      
+    }
+
+    newTrade.push(item);
+
   }
-  return filterData;
-}
 
-
+  return newTrade;
+};
 
 // trigger update
-const update = (rawData, type) => {
+const update = async (rawData, type) => {
   if (!stop) {
-    const start = Date.now();
+    // const start = Date.now();
     try {
-      data[type] = extractTradeData(rawData);
-      if (DEBUG) {
-        const elapsed = Date.now() - start;
-        console.log("Took " + elapsed + " ms\n", type, data[type]);
+      
+      const trades = extractTradeData(rawData);
+
+      if(type == "history"){        
+        // trade: remain items which not found in history
+        data.trade = data.trade.filter(c => trades.findIndex(item => item.orderID == c.orderID) == -1);
       }
-      sendDataToAll(type);
+      
+      // console.log(trades);
+      // come to history => remove from trade, append to history 
+      // come to trade => append new one, but limit 20      
+      let newTrades = [...data[type], ...trades.filter(c => data[type].findIndex(item => item.orderID == c.orderID) == -1)];
+    
+      // update first
+      newTrades = await updateCopyOrderID(newTrades, type);
+      // if(newTrades.length != 0) 
+      if(type == "trade"){
+        newTrades = newTrades.slice(0, MAX_ORDER);
+      } else {
+        // remove history that do not have copyOrderID or copyOrderIndex
+        const newHistory = [];
+        for(let item of newTrades){
+          if(item.copyOrderID){
+            const copyOrderIndex = data.init.findIndex(initItem => initItem.orderID == item.copyOrderID);
+            // can close
+            if(copyOrderIndex != -1){
+              newHistory.push(item);
+            }
+          }
+        }
+
+        // only show history that we can delete this time
+        newTrades = newHistory;
+      }
+
+      data[type] = newTrades;
+      
+
+      if (DEBUG) {
+        // const elapsed = Date.now() - start;
+        console.log(type, data[type]);
+      }
+      sendDataToAll('trade');
+      sendDataToAll('history');
     } catch (ex) {
       console.log("Error processing");
     }
@@ -231,14 +325,16 @@ app.get("/accounts", (req,res)=>{
 
 app.post("/accounts", (req,res)=>{
   // restart with new account
-  const {pubSelected, subSelected} = req.body;
-  if(accounts.pubSelected !== pubSelected || accounts.subSelected !== subSelected){
-    accounts.pubSelected = pubSelected;
+  const {
+    // pubSelected, 
+    subSelected} = req.body;
+  // if(accounts.pubSelected !== pubSelected || accounts.subSelected !== subSelected){
+    // accounts.pubSelected = pubSelected;
     accounts.subSelected = subSelected;
-    if(state.start) {
-      startAutoIT();
-    }
-  }
+    // if(state.start) {
+    //   startAutoIT();
+    // }
+  // }
   res.send(accounts);
 });
 
@@ -272,8 +368,7 @@ app.post("/upload", function(req, res, next) {
 
 // update data for the first time
 app.ws("/", (ws, req) => {
-  sendData(ws, "trade");
-  sendData(ws, "history");
+  ["trade","history","init"].forEach(type=>sendData(ws, type));
   sendLog(ws);
 });
 
@@ -298,44 +393,65 @@ app.get("/data", async (req, res,next) => {
 
   // filter data from image processing
   if(!raw){
-    let filterData = [];
-    for(let item of data[type]) {
-      const copyOrderID = await getCopyOrderID(type, item.orderID);
-      // console.log(type, item.orderID,copyOrderID);
-      // not processed
-      if(!copyOrderID) filterData.push(item);
-    }
-  
-    if(type === 'history'){
-      // with history, it means that we need to close the order, 
-      // and we only close copy order that is mapped to this order, otherwise it is meaningless
-      filterData = await filterCopyTrade(filterData);
-    } else {
-      filterData = modifyVolume(filterData, state.multiply);
-    }
-
+    let filterData =  filterDataFromType(type);
+    // only update item which is not processed
+    if (type == "trade")
+      filterData = filterData.filter(item=>item.status != "processed");
     res.send(filterData);
   } else {
     // just return raw data
     res.send(data[type])
   }
-
-  
 });
+
+// get one close order, if empty return null
+app.get('/close', async (req, res)=>{
+   const item = data.history[0];
+   if(item){
+    item.copyOrderIndex = data.init.findIndex(initItem => initItem.orderID == item.copyOrderID);
+   }
+   res.send(item);
+});
+
 
 app.post("/data", async (req, res, next) => {
   // console.log(req.body);
+  // update history => remove from history
+  // update trade => status done
   const {type} = req.query;
   if(!data[type]) return next();
   const {orderID, copyOrderID, marginPrice} = req.body;
   // update database
   const updatedItem = data[type].find(item=>item.orderID == orderID);
   updatedItem.marginPrice = marginPrice;
+  updatedItem.copyOrderID = copyOrderID;
   sendTelegram(updatedItem, type);
   // now remove this item ?, should not, keep it to track removed item, by update db we know we have done this
   // but history is ok
-  if(type == 'history')
-    data.history = data.history.filter(item => item.orderID != orderID);
+  // if(type == 'history'){
+  //   data.history = data.history.filter(item => item.orderID != orderID);
+  //   sendDataToAll('history');
+  // } else {
+  //   // const findIndex = data.trade.findIndex(item => item.orderID == orderID);
+  //   // if(findIndex != -1)
+  //   // data.trade[findIndex].status = 'processed';
+  //   // data.trade[findIndex].copyOrderID = copyOrderID;
+  //   data.trade = data.trade.filter(item => item.orderID != orderID);
+  //   sendDataToAll('trade');
+  // }
+  data[type] = data[type].filter(item => item.orderID != orderID);
+  sendDataToAll(type);
+
+  // if history => delete => remove from data.init
+  // else append to data.init if asc, else prepend
+  if(type == 'history'){
+    data.init = data.init.filter(item=>item.orderID != copyOrderID);
+  } else {
+    data.init.push({...updatedItem,orderID:updatedItem.copyOrderID});
+  }
+
+  // update init from subscriber
+  sendDataToAll('init');
 
   await db.put(`${type}.${orderID}`, copyOrderID || "");
   res.send("OK");
@@ -343,40 +459,67 @@ app.post("/data", async (req, res, next) => {
 
 //["orderID", "time", "type", "volume", "symbol", "price", "sl", "tp"]
 // Order #2169022 buy 1.00 EURUSD at 1.10984 sl: 0.00000 tp: 0.000000
-app.post("/addTrade", async(req,res)=>{
+
+app.post("/initTrade", async(req,res)=>{
   const {tradeData} = req.body;
   const trades = extractTradeData2(tradeData);
   // append to list
-  data.trade = [...data.trade, ...trades];
+  data.init = trades;
+  sendDataToAll('init');
   res.send("OK");
 });
 
-app.post("/closeTrade", async(req,res)=>{
-  const {tradeData} = req.body;
-  const trades = extractTradeData2(tradeData);
-  // if item in trade not found in tradeData => move to history, remove from trade 
-  const newTrade = [];
-  for(let tradeItem of data.trade) {
-    const index = trades.findIndex(item => item.orderID == tradeItem.orderID);
-    if(index == -1){
-      // not found, for close, it is ok whatever 
-      // if for trade, limit become market, new item is still on top, we still loop through so it is ok 
-      data.history.push(tradeItem);
-    } else {
-      newTrade.push(tradeItem);
-    }
-  }
+// app.post("/addTrade", async(req,res)=>{
+//   const {tradeData} = req.body;
+//   const trades = extractTradeData2(tradeData);
+//   // append to list if not found in init item
+//   data.trade =  trades.filter(item => data.init.findIndex(initItem=>initItem.orderID == item.orderID) == -1);
+//   res.send("OK");
+// });
+
+// app.post("/updateTrade", async(req,res)=>{
+//   const {tradeData} = req.body;
+//   let trades = extractTradeData2(tradeData);
+//   // console.log('updateTrade', trades);
+//   let historyChange = false;
+//   // only get new trades
+//   // trade =  trades.filter(item => data.init.findIndex(initItem=>initItem.orderID == item.orderID) == -1);
+//   // if item in trade not found in tradeData => move to history, remove from trade 
+
+//   // new trade - old trade => add
+//   // old trade - new trade = history => remove from trade
+
+//   const addedTrades = trades.filter(tradeItem=>data.trade.findIndex(item => item.orderID == tradeItem.orderID) == -1);
+
+//   const newTrade = [];
+//   for(let tradeItem of data.trade) {
+//     const index = trades.findIndex(item => item.orderID == tradeItem.orderID);
+//     if(index == -1){
+//       // not found, for close, it is ok whatever 
+//       // if for trade, limit become market, new item is still on top, we still loop through so it is ok 
+//       const hasDeleted =  data.history.findIndex(item => item.orderID == tradeItem.orderID) != -1;
+//       if(!hasDeleted){
+//         data.history.push(tradeItem);
+//         historyChange = true;
+//       }
+//     } else {
+//       newTrade.push(tradeItem);
+//     }
+//   }
+
+//   data.trade = newTrade.concat(addedTrades);
+
+//   sendDataToAll('trade');
+//   if(historyChange) sendDataToAll('history');
   
-  data.trade = newTrade;
-  
-  res.send("OK");
-});
+//   res.send("OK");
+// });
 
 const port = argv.port || 80;
 app.listen(port, "0.0.0.0", () => {
   console.log(`Example app listening on ${port}!`);
   // trigger
-  // sendTradeMessage();
-  // sendHistoryMessage();
+  sendTradeMessage();
+  sendHistoryMessage();
   updateAccounts();
 });

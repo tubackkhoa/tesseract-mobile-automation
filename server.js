@@ -105,6 +105,12 @@ const sendLogToAll = () => {
   aWss.clients.forEach(ws => ws.send(message));
 };
 
+
+const sendStateToAll = () => {
+  const message = JSON.stringify({ data: {state,accounts}, type: 'state' })
+  aWss.clients.forEach(ws => ws.send(message));
+};
+
 const sendTelegram = (tradeItem, type) => {
   // console.log(tradeItem, type);
   if(tradeItem){
@@ -113,13 +119,20 @@ const sendTelegram = (tradeItem, type) => {
     if(tradeItem.marginPrice){
       message += `Ignore because differ by ${tradeItem.marginPrice}`;
     } else if(!tradeItem.copyOrderID){
-      message += `Ignore because price is too close to market price ${tradeItem.price}`;
+      if(tradeItem.countLimit){
+        message += `Ignore because exceed max number of trades: ${tradeItem.countLimit}`;
+      } else if(tradeItem.retries) {
+        message += `Ignore after retries: ${tradeItem.retries}`;
+      } else {
+        message += `Ignore because price is too close to market price ${tradeItem.price}`;
+      }
+      
     } else {
       message += type === 'trade' ? `${state.copy ? 'Copy' : 'Reverse'} [${tradeItem.type}]` : 'Close';
     }
-    message += ` ${tradeItem.orderID} Price: ${tradeItem.price}`;
-    if(type == 'trade'){
-      message += ` Volume: ${Math.round(tradeItem.volume * state.multiply)} S/L: ${tradeItem.sl} T/P:${tradeItem.tp}`;
+    message += ` ${tradeItem.orderID} ,Price: ${tradeItem.price}`;
+    if(type == 'trade' && tradeItem.copyOrderID){
+      message += `, Volume: ${Math.round(tradeItem.volume * state.multiply)} ,S/L: ${tradeItem.sl} ,T/P:${tradeItem.tp}`;
     }
     // update log
     telegram.send(TELEGRAM_GROUPID, message, ret=>{
@@ -145,6 +158,7 @@ const startAutoIT=()=>{
   // spawn can use current directory
   autoit = spawn(tradeExePath, [], {env:{ACTION, 
     // PUBLISH_ACCOUNT_ID,
+    MAX_ORDER,
     SUBSCRIBE_ACCOUNT_ID,MARGIN_LIMIT}});
   autoit.stdout.on('data', (data) => {
     const message = data.toString();
@@ -172,7 +186,7 @@ const startAutoIT=()=>{
 const childProcessTrade = fork("./extract_text.js", {
   env: {
     ...env,
-    PADDING_BOTTOM: 400,
+    PADDING_BOTTOM: 0,
     DEVICE_WIDTH: 1600,
     DEVICE_HEIGHT: 900
   }
@@ -181,7 +195,7 @@ const childProcessTrade = fork("./extract_text.js", {
 const childProcessHistory = fork("./extract_text.js", {
   env: {
     ...env,
-    PADDING_BOTTOM: 400,
+    PADDING_BOTTOM: 0,
     DEVICE_WIDTH: 1600,
     DEVICE_HEIGHT: 900
   }
@@ -360,7 +374,11 @@ app.post("/state", (req,res)=>{
     } else {
       stopAutoIT();
     }
+
+    sendStateToAll();
   }
+
+  
   
   res.send(state);
 });
@@ -408,6 +426,13 @@ app.get("/data", async (req, res,next) => {
   }
 });
 
+
+// get one close order, if empty return null
+app.get('/trade', async (req, res)=>{
+  const item = data.trade[0];
+  res.send(item);
+});
+
 // get one close order, if empty return null
 app.get('/close', async (req, res)=>{
    const item = data.history[0];
@@ -424,12 +449,20 @@ app.post("/data", async (req, res, next) => {
   // update trade => status done
   const {type} = req.query;
   if(!data[type]) return next();
-  const {orderID, copyOrderID, marginPrice} = req.body;
+  const {orderID, copyOrderID, marginPrice, retries, countLimit} = req.body;
+
+  // console.log( {orderID, copyOrderID, marginPrice, retries});
+
   // update database
   const updatedItem = data[type].find(item=>item.orderID == orderID);
-  updatedItem.marginPrice = marginPrice;
-  updatedItem.copyOrderID = copyOrderID;
-  sendTelegram(updatedItem, type);
+  if(updatedItem){
+      updatedItem.marginPrice = marginPrice;
+      updatedItem.copyOrderID = copyOrderID;
+      updatedItem.retries = retries;
+      updatedItem.countLimit = countLimit;
+      sendTelegram(updatedItem, type);
+  }
+    
   // now remove this item ?, should not, keep it to track removed item, by update db we know we have done this
   // but history is ok
   // if(type == 'history'){
@@ -443,6 +476,9 @@ app.post("/data", async (req, res, next) => {
   //   data.trade = data.trade.filter(item => item.orderID != orderID);
   //   sendDataToAll('trade');
   // }
+  if(countLimit) {
+    console.log('Should ignore this order', orderID);
+  }
   data[type] = data[type].filter(item => item.orderID != orderID);
   sendDataToAll(type);
 
@@ -451,13 +487,19 @@ app.post("/data", async (req, res, next) => {
   if(type == 'history'){
     data.init = data.init.filter(item=>item.orderID != copyOrderID);
   } else {
-    data.init.push({...updatedItem,orderID:updatedItem.copyOrderID});
+    // if success then update
+    if(updatedItem && updatedItem.copyOrderID){
+      data.init.push({...updatedItem,orderID:updatedItem.copyOrderID});
+    }
   }
 
   // update init from subscriber
   sendDataToAll('init');
 
-  await db.put(`${type}.${orderID}`, copyOrderID || "");
+  // ignore to make sure it is ignore
+  await db.put(`${type}.${orderID}`, copyOrderID || "ignore");
+  
+
   res.send("OK");
 });
 

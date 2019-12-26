@@ -153,14 +153,47 @@
         });
       }
 
+      function updateAccounts(accounts){
+        $('#subAccounts').empty();
+        accounts.data.forEach(function(item){
+            // let pubSelected = item === accounts.pubSelected ? 'selected' : '';
+            let subSelected = item === accounts.subSelected ? 'selected' : '';
+            // $('#pubAccounts').append(`<option ${pubSelected} value="${item}">${item}</option>`);
+            $('#subAccounts').append(`<option ${subSelected} value="${item}">${item}</option>`);
+          });       
+      }
+
+      let currentState = {};
+
+      function updateState(state){
+        currentState = state;
+        $('#copyAction').bootstrapToggle(currentState.copy ? 'on' : 'off');
+        $('#startAction').bootstrapToggle(currentState.start ? 'off' : 'on');
+        $('#multiply').val(currentState.multiply);
+        $('#marginLimit').val(currentState.marginLimit);        
+      }
+
+      function update() {
+        fetch('/state', {
+          method: 'post',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(currentState)
+        });
+      }
+
       var ws = new WebSocket("ws://" + location.host);
       ws.onopen = function() {
         console.log("websocket is connected ...");
       };
       ws.onmessage = function(ev) {
         const data = JSON.parse(ev.data);
-        if(data.type === "log"){
+        if(data.type == "log"){
           $('#log').attr('class',"alert alert-" + data.data.type).html(data.data.message);
+        } else if(data.type == 'state') {
+          updateAccounts(data.data.accounts);
+          updateState(data.data.state);
         } else {
           const capitializedType =
             data.type.charAt(0).toUpperCase() + data.type.slice(1);
@@ -169,47 +202,32 @@
           var tableEl = $("#table" + capitializedType);
           tableEl.bootstrapTable("load", fixData(data.data));
         }
-      };
+      };      
 
       $(function() {
 
         fetch('/accounts').then(ret=>ret.json()).then(function(accounts){
-          accounts.data.forEach(function(item){
-            // let pubSelected = item === accounts.pubSelected ? 'selected' : '';
-            let subSelected = item === accounts.subSelected ? 'selected' : '';
-            // $('#pubAccounts').append(`<option ${pubSelected} value="${item}">${item}</option>`);
-            $('#subAccounts').append(`<option ${subSelected} value="${item}">${item}</option>`);
-          });         
-
+          updateAccounts(accounts);
         });
 
         fetch('/state').then(ret=>ret.json()).then(function(state){
-          let copy = state.copy;
-          let start = state.start;
-          let multiply = state.multiply;
-          let marginLimit = state.marginLimit;
+          // let copy = state.copy;
+          // let start = state.start;
+          // let multiply = state.multiply;
+          // let marginLimit = state.marginLimit;
+          updateState(state);
 
-          const update = function() {
-            fetch('/state', {
-              method: 'post',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({copy:copy, start:start,multiply:multiply,marginLimit:marginLimit})
-            });
-          };
+        })
 
-          $('#copyAction').bootstrapToggle(copy ? 'on' : 'off');
-
-          $('#copyAction').show().change(function() {
-            copy = $(this).prop('checked');
+        $('#copyAction').show().change(function() {
+            currentState.copy = $(this).prop('checked');
             update();
           });
 
-          $('#startAction').bootstrapToggle(start ? 'off' : 'on');
+          
 
           $('#startAction').show().change(function() {
-            start = !$(this).prop('checked');
+            currentState.start = !$(this).prop('checked');
 
             fetch('/accounts', {
               method: 'post',
@@ -227,17 +245,15 @@
             
           });
 
-          $('#multiply').val(multiply).blur(function(){
-            multiply = $(this).val();
+          $('#multiply').blur(function(){
+            currentState.multiply = $(this).val();
             update();
           });
 
-          $('#marginLimit').val(marginLimit).blur(function(){
-            marginLimit = $(this).val();
+          $('#marginLimit').blur(function(){
+            currentState.marginLimit = $(this).val();
             update();
           });
-
-        })
     
       });
 

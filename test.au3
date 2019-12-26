@@ -127,9 +127,8 @@ EndFunc
 $winTitle = "[TITLE:1003415: SMFX-Demo - Demo Account; CLASS:MetaQuotes::MetaTrader::4.00]"
 
 Local $hWin = WinWait($winTitle, "", 10)
-Local $hWnd = ControlGetHandle($hWin, "", "[CLASS:SysHeader32; INSTANCE:1]")
-ControlClick($hwnd, "", "","left", 1, 300, 10)
-ControlClick($hwnd, "", "","left", 1, 60, 10)
+Local $hwnd = ControlGetHandle($hWin, "", "[CLASS:ToolbarWindow32; INSTANCE:4]")
+ControlClick($hwnd, "", "","left", 1, 280, 10)
 
 ;~ Local $data = _GUICtrlListView_GetContents($hWnd)
 

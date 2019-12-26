@@ -74,77 +74,77 @@ Func GetOrderID($list, $ind)
    Return GetOrderIDFromData($sText)
 EndFunc
 
-Func ClosePrice($list, $historyURL, ByRef $marketNum, ByRef $limitNum, ByRef $sortDesc)
-   Local $historyData = _HTTP_Get($historyURL)
-   Local $historyObj = Json_Decode($historyData)
+;~ Func ClosePrice($list, $historyURL, ByRef $marketNum, ByRef $limitNum, ByRef $sortDesc)
+;~    Local $historyData = _HTTP_Get($historyURL)
+;~    Local $historyObj = Json_Decode($historyData)
 ;~    Local $numToDelete = UBound($historyObj)
 
-   Local $count = _GUICtrlListView_GetItemCount($list)
+;~    Local $count = _GUICtrlListView_GetItemCount($list)
 
-   $marketNum = 0
-   $limitNum = 0
-   Local $isMarket = True
+;~    $marketNum = 0
+;~    $limitNum = 0
+;~    Local $isMarket = True
 
-   Local $lastMarketOrder = 0
-   Local $lastLimitOrder = 0
+;~    Local $lastMarketOrder = 0
+;~    Local $lastLimitOrder = 0
 
-   Local $rowInd = 0
-   Local $totalCount = $count
-   For $ind = 0 To $count - 1 Step 1
+;~    Local $rowInd = 0
+;~    Local $totalCount = $count
+;~    For $ind = 0 To $count - 1 Step 1
 
 ;~ 	  If $numToDelete = 0 Then
 ;~ 		 ExitLoop
 ;~ 	  EndIf
-	  Local $hOrderWin
-	  Local $sText = GetOrderDataBy($list, $rowInd, $hOrderWin)
+;~ 	  Local $hOrderWin
+;~ 	  Local $sText = GetOrderDataBy($list, $rowInd, $hOrderWin)
 
-	  If $sText = "" Then
-		 $isMarket = False
-		 ContinueLoop
-	  EndIf
+;~ 	  If $sText = "" Then
+;~ 		 $isMarket = False
+;~ 		 ContinueLoop
+;~ 	  EndIf
 
-	  Local $copyOrderID = GetOrderIDFromData($sText)
-	  Local $nOrderID= Number($copyOrderID)
+;~ 	  Local $copyOrderID = GetOrderIDFromData($sText)
+;~ 	  Local $nOrderID= Number($copyOrderID)
 
-	  If $isMarket Then
-		 $marketNum += 1
-		 If $lastMarketOrder > 0 Then
-			$sortDesc = $lastMarketOrder > $nOrderID
-		 EndIf
-		 $lastMarketOrder = $nOrderID
-	  Else
-		 $limitNum += 1
-		 If $lastLimitOrder Then
-			$sortDesc = $lastLimitOrder > $nOrderID
-		 EndIf
-		 $lastLimitOrder = $nOrderID
-	  EndIf
+;~ 	  If $isMarket Then
+;~ 		 $marketNum += 1
+;~ 		 If $lastMarketOrder > 0 Then
+;~ 			$sortDesc = $lastMarketOrder > $nOrderID
+;~ 		 EndIf
+;~ 		 $lastMarketOrder = $nOrderID
+;~ 	  Else
+;~ 		 $limitNum += 1
+;~ 		 If $lastLimitOrder Then
+;~ 			$sortDesc = $lastLimitOrder > $nOrderID
+;~ 		 EndIf
+;~ 		 $lastLimitOrder = $nOrderID
+;~ 	  EndIf
 
 ;~ 	  ConsoleWrite($ind & ") " & $sText & @LF)
 
-	  Local $orderID = HasCopyOrder($historyObj, $copyOrderID)
-	  If Not $orderID = "" Then
-		 Local $aPos = WinGetPos($hOrderWin)
+;~ 	  Local $orderID = HasCopyOrder($historyObj, $copyOrderID)
+;~ 	  If Not $orderID = "" Then
+;~ 		 Local $aPos = WinGetPos($hOrderWin)
 ;~ 			Delete or Close button here
-		 MouseClick("left", $aPos[0] + 630, $aPos[1] + 293, 1)
-		 ;~ 	   update command
-		 _HTTP_Post($historyURL, "orderID=" & URLEncode($orderID) & "&copyOrderID=" & $copyOrderID)
+;~ 		 MouseClick("left", $aPos[0] + 630, $aPos[1] + 293, 1)
+;~ 		 ;~ 	   update command
+;~ 		 _HTTP_Post($historyURL, "orderID=" & URLEncode($orderID) & "&copyOrderID=" & $copyOrderID)
 
 
 ;~ 		 remain rowInd but need to wait for list change
-		 Local $differ = WaitForListChanged($list, $totalCount)
-		 $totalCount -= $differ
-		 ConsoleWrite("$sortDesc: " & $sortDesc & " Close price: orderID: #" & $copyOrderID & " total row : " & $totalCount & @LF)
+;~ 		 Local $differ = WaitForListChanged($list, $totalCount)
+;~ 		 $totalCount -= $differ
+;~ 		 ConsoleWrite("$sortDesc: " & $sortDesc & " Close price: orderID: #" & $copyOrderID & " total row : " & $totalCount & @LF)
 ;~ 		 Sleep(200)
 ;~ 		 $numToDelete -= 1
-	  Else
-		 $rowInd += 1
-	  EndIf
+;~ 	  Else
+;~ 		 $rowInd += 1
+;~ 	  EndIf
 
-   Next
+;~    Next
 
 
-EndFunc
+;~ EndFunc
 
 Func WaitForListChanged($list, $count, $timeout = 5000)
    Local $watchDog = 0
@@ -416,6 +416,7 @@ Func Trade($URL, $sSubAccountID, $sAction, $marginLimit, $retries)
    Local $tradeURL = $URL & "/data?type=trade"
    Local $historyURL = $URL & "/data?type=history"
    Local $closeURL = $URL & "/close"
+   Local $orderURL = $URL & "/trade"
    Local $hWin = WinWait("[TITLE:" & $sSubAccountID & "; CLASS:MetaQuotes::MetaTrader::4.00]", "", 10)
 ;~    ConsoleWrite(WinGetTitle($hWin) & @LF)
 ;~    WinActivate($hWin)
@@ -432,30 +433,38 @@ Func Trade($URL, $sSubAccountID, $sAction, $marginLimit, $retries)
 	  _HTTP_Post($URL & "/initTrade", "tradeData=" & $orderData)
    EndIf
 
-   ConsoleWrite("Do closing" & @LF)
+   ;~    for sure
+   $marketNum = $count - 1
+
+;~    ConsoleWrite("Do closing" & @LF)
    While 1
 ;~    close trade
 ;~    If $actionTrade = 2 Then
 ;~    ClosePrice($list, $historyURL, $marketNum, $limitNum, $sortDesc)
 	  Local $closeData = _HTTP_Get($closeURL)
+
 	  Local $closeObj = Json_Decode($closeData)
 
-	  Local $orderID = Json_Get($closeObj, 'orderID')
+	  Local $orderID = Json_Get($closeObj, '.orderID')
 ;~ 	  may empty
 	  If @error Then ExitLoop
-	  Local $copyOrderID = Json_Get($closeObj, 'copyOrderID')
-	  Local $copyOrderIndex = Json_Get($closeObj, 'copyOrderIndex')
-	  Local $orderType = Json_Get($closeObj, 'type')
+
+	  Local $copyOrderID = Json_Get($closeObj, '.copyOrderID')
+	  Local $copyOrderIndex = Json_Get($closeObj, '.copyOrderIndex')
+	  Local $orderType = Json_Get($closeObj, '.type')
 	  Local $hOrderWin
-	  Local $sText = GetOrderDataBy($list, $rowInd, $hOrderWin)
+	  Local $sText = GetOrderDataBy($list, $copyOrderIndex, $hOrderWin)
 	  Local $checkCopyOrderID = GetOrderIDFromData($sText)
 	  If $checkCopyOrderID = $copyOrderID Then
+		 ConsoleWrite("$closeData, rowIndex: " & $copyOrderIndex & " orderID: " & $copyOrderID & @LF)
 		 Local $aPos = WinGetPos($hOrderWin)
    ;~ 			Delete or Close button here
 		 MouseClick("left", $aPos[0] + 630, $aPos[1] + 293, 1)
 
    ;~ 		 remain rowInd but need to wait for list change
 		 Local $differ = WaitForListChanged($list, $count)
+;~ 		 fix delete 1 by 1
+		 $differ = 1
 		 $count -= $differ
 
 		 If $orderType = "Sell" Or $orderType = "Buy" Then
@@ -469,11 +478,13 @@ Func Trade($URL, $sSubAccountID, $sAction, $marginLimit, $retries)
 	  EndIf
    WEnd
 
-   ConsoleWrite("Do trading" & @LF)
+
 
 ;~ 	  Return
 ;~    EndIf
    Sleep(500)
+
+;~    ConsoleWrite("Do trading" & @LF)
 
 ;~    sleep a little bit before doing trade
    Local $tradeData = _HTTP_Get($tradeURL)
@@ -481,23 +492,30 @@ Func Trade($URL, $sSubAccountID, $sAction, $marginLimit, $retries)
 
 ;~    ConsoleWrite("Total $marketNum " & $marketNum & @LF)
 
+
    Local $i = 0
    Local $watchDogRetries = $retries
    While 1
-
-;~ 	  WinClose("Order")
-
-
-	   If $count > $countLimit Then
-		  Return
-	   EndIf
-
+	   ;~ make sure
+;~ 	  $count = _GUICtrlListView_GetItemCount($list)
 	   Local $id = '[' & $i & '].'
 	   Local $symbol = Json_Get($tradeObj, $id & 'symbol')
+;~ 	   ConsoleWrite("$tradeData: " & $tradeData & @LF)
 	   If @error Then ExitLoop
 
 	   Local $price = Json_Get($tradeObj, $id & 'price')
 	   Local $orderID = Json_Get($tradeObj, $id & 'orderID')
+
+	   If $orderID = "" Then
+		  ExitLoop
+	   EndIf
+
+	   If $count > $countLimit Then
+		  $i += 1
+		  _HTTP_Post($tradeURL, "orderID=" & URLEncode($orderID) & "&countLimit=" & $countLimit)
+		  ConsoleWrite("Ignore trade: orderID: " & $orderID &  " because exceed limit " & $countLimit & @LF)
+		  ContinueLoop
+	   EndIf
 
 	   Local $orderType = Json_Get($tradeObj, $id & 'type')
 	   If $sAction = "reverse" Then
@@ -558,6 +576,11 @@ Func Trade($URL, $sSubAccountID, $sAction, $marginLimit, $retries)
 		 If Not $canTrade Then
 			_HTTP_Post($tradeURL, "orderID=" & URLEncode($orderID) & "&marginPrice=" & $marginPrice)
 			ConsoleWrite("Ignore trade: symbol: " & $symbol & " type: " & $orderType & " volume: " & $volume & " price: " & $price & " with margin Price " & $marginPrice & @LF)
+
+;~ 			ExitLoop
+			$i += 1
+			ContinueLoop
+
 		 Else
 			ConsoleWrite("Market execution: " & $orderType & " with margin Price " & $marginPrice & @LF)
 		 EndIf
@@ -595,6 +618,9 @@ Func Trade($URL, $sSubAccountID, $sAction, $marginLimit, $retries)
 
 	  Local $copyOrderID = ""
 	  Local $differ = WaitForListChanged($list, $count)
+	  $differ = 1
+;~ 	  WinClose("Order")
+
 ;~ 	  should be 1
 	  If $differ > 0 Then
 ;~ 			must be 0 if is market, otherwise is $marketNum + 1
@@ -606,8 +632,15 @@ Func Trade($URL, $sSubAccountID, $sAction, $marginLimit, $retries)
 			;~ 			one more market order
 			$marketNum += $differ
 		 EndIf
-		 $copyOrderID = UpdateLastOrderID($list, $marketNum, $count, $isLimit)
-		 ConsoleWrite("$sortDesc: " & $sortDesc & " $copyOrderID: " & $copyOrderID & " $count: " & $count & " $marketNum: " & $marketNum & @LF)
+;~ 		 $copyOrderID = UpdateLastOrderID($list, $marketNum, $count, $isLimit)
+;~          fix limit
+		 If $limitNum = 0 Then
+			$copyOrderID = GetOrderID($list, $count - 2)
+		 Else
+			$copyOrderID = UpdateLastOrderID($list, $marketNum, $count, $isLimit)
+		 EndIf
+
+		 ConsoleWrite("$sortDesc: " & $sortDesc & " $orderID: " & $orderID & " $copyOrderID: " & $copyOrderID & " $count: " & $count & " $marketNum: " & $marketNum & " $limitNum: " & $limitNum & @LF)
 	  EndIf
 
 	  If Not $copyOrderID = "" Then
@@ -621,10 +654,18 @@ Func Trade($URL, $sSubAccountID, $sAction, $marginLimit, $retries)
 	  If $watchDogRetries = 0 Then
 		 $i += 1
 		 $watchDogRetries = $retries
+		 If $copyOrderID = "" Then
+			_HTTP_Post($tradeURL, "orderID=" & URLEncode($orderID) & "&retries=" & $retries)
+			 ConsoleWrite("Can not : " & $orderType & " with price: " & $price & @LF)
+		 EndIf
+;~ 		 do nothing, should exit
+;~ 		 ExitLoop
 
 	  Else
 		 $watchDogRetries -= 1
 	  EndIf
+
+	  WinClose("Order")
 	  Sleep(200)
 ;~ 	  retry forever or whatdog ?
 
@@ -647,13 +688,14 @@ Else
 ;~    Local $sSubAccountID = EnvGet("SUBSCRIBE_ACCOUNT_ID")
    Local $sAction = EnvGet("ACTION")
    Local $marginLimit = Number(EnvGet("MARGIN_LIMIT"))
+   $countLimit = Number(EnvGet("MAX_ORDER"))
 EndIf
 
 
 ConsoleWrite("Account ID : " & $sSubAccountID & " ACTION: " & $sAction & " MARGIN_LIMIT: " & $marginLimit & @LF)
 
 While 1
-   Trade("http://localhost", $sSubAccountID, $sAction, $marginLimit, 4)
+   Trade("http://localhost", $sSubAccountID, $sAction, $marginLimit, 10)
 ;~    before continuing
    Sleep($delay)
 WEnd

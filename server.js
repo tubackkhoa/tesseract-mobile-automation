@@ -1,14 +1,15 @@
 const argv = require("yargs").argv;
 const level = require('level');
+const path = require('path');
 
 // 250: emulator-5564:history.png, 300, emulator-5554, trade.png
 const platform = process.platform;
 let env;
 if (platform === "win32") {
   env = {
-    TESSERACT: "E:/MT4/tesseract/tesseract.exe",
-    TESSDATA_PREFIX: "E:/MT4/tesseract/tessdata",
-    ADB: "E:/MT4/platform-tools/adb.exe"
+    TESSERACT: path.join(__dirname, "bin/tesseract/tesseract.exe"),
+    TESSDATA_PREFIX: path.join(__dirname, "bin/tesseract/tessdata"),
+    ADB: path.join(__dirname, "bin/platform-tools/adb.exe")
   };
 } else {
   env = {
@@ -26,7 +27,7 @@ const fs = require("fs");
 const app = express();
 const expressWs = require("express-ws")(app);
 const bodyParser = require("body-parser");
-const path = require('path');
+
 const {extractTradeData, extractTradeData2, modifyVolume, Telegram} = require('./utils');
 
 const telegram = new Telegram(argv.telegramToken || '1069055490:AAF6X4Cq-QQrNvIRTn400qjEwFpWFCY7gok');
@@ -49,8 +50,17 @@ let autoit;
 
 const accountsExePath = path.join(__dirname, 'account_list');
 const updateAccounts = () => {
-  accounts.data = execSync(accountsExePath).toString().replace(/;$/,"").split(/\s*;\s*/);
-  // if(!accounts.pubSelected) accounts.pubSelected = accounts.data[0];
+  const newAccounts = execSync(accountsExePath).toString().replace(/;$/,"").split(/\s*;\s*/).sort();
+
+  if (newAccounts.length !== accounts.data.length
+      || !newAccounts.every((u, i) =>{
+          return u === accounts.data[i];
+      })
+  ) {
+    accounts.data = newAccounts;
+    sendStateToAll();
+  } 
+
   if(!accounts.subSelected) accounts.subSelected = accounts.data[0];
   setTimeout(updateAccounts, 1000);
 }
@@ -88,27 +98,27 @@ const filterDataFromType = (type) => {
 const sendDataToAll =  (type) => {
   const filterData =  filterDataFromType(type);
   const message = JSON.stringify({ data: filterData, type: type });
-  aWss.clients.forEach(ws => ws.send(message));
+  aWss.clients.forEach(ws =>  ws.readyState === ws.OPEN && ws.send(message));
 };
 
 const sendData =  (ws, type) => {
   const filterData =  filterDataFromType(type);
-  ws.send(JSON.stringify({ data: filterData, type: type }));
+  ws.readyState === ws.OPEN && ws.send(JSON.stringify({ data: filterData, type: type }));
 };
 
 const sendLog = (ws) => {
-  ws.send(JSON.stringify({ data: log, type: 'log' }));
+  ws.readyState === ws.OPEN && ws.send(JSON.stringify({ data: log, type: 'log' }));
 };
 
 const sendLogToAll = () => {
   const message = JSON.stringify({ data: log, type: 'log' })
-  aWss.clients.forEach(ws => ws.send(message));
+  aWss.clients.forEach(ws => ws.readyState === ws.OPEN && ws.send(message));
 };
 
 
 const sendStateToAll = () => {
   const message = JSON.stringify({ data: {state,accounts}, type: 'state' })
-  aWss.clients.forEach(ws => ws.send(message));
+  aWss.clients.forEach(ws =>  ws.readyState === ws.OPEN && ws.send(message));
 };
 
 const sendTelegram = (tradeItem, type) => {
@@ -188,7 +198,7 @@ const childProcessTrade = fork("./extract_text.js", {
     ...env,
     PADDING_BOTTOM: 0,
     DEVICE_WIDTH: 1600,
-    DEVICE_HEIGHT: 900
+    DEVICE_HEIGHT: 1440
   }
 });
 
@@ -197,7 +207,7 @@ const childProcessHistory = fork("./extract_text.js", {
     ...env,
     PADDING_BOTTOM: 0,
     DEVICE_WIDTH: 1600,
-    DEVICE_HEIGHT: 900
+    DEVICE_HEIGHT: 1440
   }
 });
 
@@ -363,11 +373,12 @@ app.get("/state", (req,res)=>{
 app.post("/state", (req,res)=>{
   const {copy,start,multiply,marginLimit} = req.body;
   // console.log(copy, start);
-  state.copy = copy;
+  
   state.multiply = parseFloat(multiply);
   state.marginLimit = parseFloat(marginLimit);
-  if(start !== state.start){
+  if(start !== state.start || copy !== state.copy){
     state.start = start;
+    state.copy = copy;
     // change status
     if(start) {
       startAutoIT();
@@ -508,6 +519,7 @@ app.post("/data", async (req, res, next) => {
 
 app.post("/initTrade", async(req,res)=>{
   const {tradeData} = req.body;
+  // console.log(tradeData);
   const trades = extractTradeData2(tradeData);
   // append to list
   data.init = trades;

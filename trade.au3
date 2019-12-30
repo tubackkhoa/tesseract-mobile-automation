@@ -417,8 +417,12 @@ Func Trade($URL, $sSubAccountID, $sAction, $marginLimit, $retries)
    Local $historyURL = $URL & "/data?type=history"
    Local $closeURL = $URL & "/close"
    Local $orderURL = $URL & "/trade"
+
+   ConsoleWrite("Waiting for: " & $sSubAccountID & @LF)
+
    Local $hWin = WinWait("[TITLE:" & $sSubAccountID & "; CLASS:MetaQuotes::MetaTrader::4.00]", "", 10)
-;~    ConsoleWrite(WinGetTitle($hWin) & @LF)
+
+   ConsoleWrite("$marketNum: " & $marketNum & @LF)
 ;~    WinActivate($hWin)
 
    Local $hwnd = ControlGetHandle($hWin, "", "[CLASS:ToolbarWindow32; INSTANCE:4]")
@@ -680,7 +684,7 @@ Global $countLimit = 20
 If Not $sSubAccountID Then
 ;~    $sPubAccountID = "1003413: SMFX-Demo - Demo Account"
 ;~    Local
-   $sSubAccountID = "1003415: SMFX-Demo - Demo Account"
+   $sSubAccountID = "2100032247: LMAX-DemoUK - Demo Account"
    Local $sAction = "copy"
    Local $marginLimit = "0.015"
    $delay = 4000

@@ -17,6 +17,8 @@ const run = async  (key)=>{
 }
 
 
-run('trade.2167992')
+run('trade.2175994')
+run('trade.2175996')
+run('trade.2176034')
 
 

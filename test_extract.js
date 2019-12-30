@@ -22,6 +22,8 @@ const argv = require("yargs").argv;
 // 250: emulator-5564:history.png, 300, emulator-5554, trade.png
 
 env.PADDING_BOTTOM = argv.bottom || 0;
+env.DEVICE_WIDTH = 1600;
+env.DEVICE_HEIGHT = 1440;
 // fork another process
 const childProcess = fork("./extract_text.js", {
   env: env
@@ -31,7 +33,7 @@ childProcess.send({
   device: argv.device,
   image: argv.image,
   top: argv.top || 210,
-  right: argv.right || 450 
+  right: argv.right || 550 
 });
 
 // listen for messages from forked childProcess

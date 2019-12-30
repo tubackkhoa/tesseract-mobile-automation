@@ -192,8 +192,9 @@
         if(data.type == "log"){
           $('#log').attr('class',"alert alert-" + data.data.type).html(data.data.message);
         } else if(data.type == 'state') {
-          updateAccounts(data.data.accounts);
-          updateState(data.data.state);
+          // updateAccounts(data.data.accounts);
+          // updateState(data.data.state);
+          window.location.reload();
         } else {
           const capitializedType =
             data.type.charAt(0).toUpperCase() + data.type.slice(1);
@@ -204,27 +205,13 @@
         }
       };      
 
-      $(function() {
 
-        fetch('/accounts').then(ret=>ret.json()).then(function(accounts){
-          updateAccounts(accounts);
-        });
-
-        fetch('/state').then(ret=>ret.json()).then(function(state){
-          // let copy = state.copy;
-          // let start = state.start;
-          // let multiply = state.multiply;
-          // let marginLimit = state.marginLimit;
-          updateState(state);
-
-        })
-
+      function bindActions() {
         $('#copyAction').show().change(function() {
             currentState.copy = $(this).prop('checked');
             update();
           });
 
-          
 
           $('#startAction').show().change(function() {
             currentState.start = !$(this).prop('checked');
@@ -254,6 +241,28 @@
             currentState.marginLimit = $(this).val();
             update();
           });
+      }
+
+      $(function() {
+
+        fetch('/accounts').then(ret=>ret.json()).then(function(accounts){
+          updateAccounts(accounts);
+        });
+
+        fetch('/state').then(ret=>ret.json()).then(function(state){
+          // let copy = state.copy;
+          // let start = state.start;
+          // let multiply = state.multiply;
+          // let marginLimit = state.marginLimit;
+          updateState(state);
+
+          // bind later
+          bindActions();
+
+        });
+
+
+         
     
       });
 

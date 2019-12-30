@@ -14,11 +14,16 @@ const history = `2171552 2019.12.23 05-48 sell 0.10 USDCHF 0.98058
 2171539 2019.12.23 05-46 buy 0.10 EURAUD 1.60164`
 
 
-const tradeData = `Order #2169022 buy 1.00 EURUSD at 1.10984 sl: 0.00000 tp: 0.000000
-Order #2169022 buy limit 1.00 EURUSD at 1.10984 sl: 0.00000 tp: 0.000000
-Order #2169022 sell 1.00 EURUSD at 1.10984 sl: 0.00000 tp: 0.000000
-Order #2169022 sell stop 1.00 EURUSD at 1.10984 sl: 1.12000 tp: 0.000000
-`
+const tradeData = `Order #97201148 buy 0.01 USDCHF.lmx at 0.97278 sl: 0.00000 tp: 0.00000
+Order #97201149 buy 0.01 USDCHF.lmx at 0.97277 sl: 0.00000 tp: 0.00000
+Order #97201150 buy 0.01 USDCHF.lmx at 0.97270 sl: 0.00000 tp: 0.00000
+Order #97201151 buy 0.01 USDCHF.lmx at 0.97270 sl: 0.00000 tp: 0.00000
+Order #97201152 buy 0.01 USDCHF.lmx at 0.97272 sl: 0.00000 tp: 0.00000
+Order #97201153 buy 0.01 USDCHF.lmx at 0.97272 sl: 0.00000 tp: 0.00000
+Order #97201154 sell 0.01 USDCHF.lmx at 0.97263 sl: 0.00000 tp: 0.00000
+Order #97201155 sell 0.01 USDCHF.lmx at 0.97263 sl: 0.00000 tp: 0.00000
+Order #97201156 sell 0.01 GBPJPY.lmx at 143.201 sl: 0.000 tp: 0.000
+Order #97201157 sell 0.01 USDCHF.lmx at 0.97268 sl: 0.00000 tp: 0.00000`
 
-let data = extractTradeData(history);
+let data = extractTradeData2(tradeData);
 console.log(data);

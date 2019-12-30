@@ -14,10 +14,11 @@ class MyRegExp extends RegExp {
 
 const tradeHeaders = ["orderID", "time", "type", "volume", "symbol", "price", "sl", "tp"];
 const floatGroup = `([0-9]+\\.[0-9]+)`;
-const reTrade = new MyRegExp(`(\\d+)\\s+([\\d\\.]+\\s*[\\d\\:]+)\\s+((?:sell|buy)(?:\\s+(?:limit|stop))?)\\s+${floatGroup}\\s+([A-Z]+)\\s+${floatGroup}(?:\\s+${floatGroup}\\s+${floatGroup})?`, 'g');
+const symbolGroup = `(\\w+(?:\\.\\w+)?)`;
+const reTrade = new MyRegExp(`(\\d+)\\s+([\\d\\.]+\\s*[\\d\\:]+)\\s+((?:sell|buy)(?:\\s+(?:limit|stop))?)\\s+${floatGroup}\\s+${symbolGroup}\\s+${floatGroup}(?:\\s+${floatGroup}\\s+${floatGroup})?`, 'g');
 // Order #2169022 buy 1.00 EURUSD at 1.10984 sl: 0.00000 tp: 0.000000
 const tradeHeadersData = ["orderID", "type", "volume", "symbol", "price", "sl", "tp"];
-const reTradeData = new MyRegExp(`Order\\s+#(\\d+)\\s+((?:sell|buy)(?:\\s+(?:limit|stop))?)\\s+${floatGroup}\\s+([A-Z]+)\\s+at\\s+${floatGroup}\\s+sl:\\s+${floatGroup}\\s+tp:\\s+${floatGroup}`, 'g');
+const reTradeData = new MyRegExp(`Order\\s+#(\\d+)\\s+((?:sell|buy)(?:\\s+(?:limit|stop))?)\\s+${floatGroup}\\s+${symbolGroup}\\s+at\\s+${floatGroup}\\s+sl:\\s+${floatGroup}\\s+tp:\\s+${floatGroup}`, 'g');
 
 const toObject = (names, match) => {
     const values = match.slice(1, names.length + 1)

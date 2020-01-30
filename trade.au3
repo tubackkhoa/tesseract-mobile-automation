@@ -332,66 +332,6 @@ Func UpdateAndGetDataString($list, $count)
    Return URLEncode($orderData)
 EndFunc
 
-;~  return 1: add, 2: close
-Func DoCrawl($URL, $sPubAccountID)
-;~    because it is not meaningful when we copy all past trades
-;~    If $pubListCount change => update publish count, post to server, then return True, else return False
-;~   Should watch fast, The change could be: length > 1 => new trade (first if market, or number of market +1 if limit), by store
-;~  number of market, and last orderid, we can figure out change, if last orderid is differ => we get it
-;~  incase length < 1 go to history and get the first one, that should be enough, instead of loop through because human only process 1 by 1
-   Local $hWin = WinWait("[TITLE:" & $sPubAccountID & "; CLASS:MetaQuotes::MetaTrader::4.00]", "", 10)
-   Local $list = ControlGetHandle($hWin, "", "[ID:33217]")
-   Local $count = _GUICtrlListView_GetItemCount($list)
-;~    ConsoleWrite("count: " & $count & " current count: " & $pubListCount & " win: " & "[TITLE:" & $sPubAccountID & "; CLASS:MetaQuotes::MetaTrader::4.00]" & @LF)
-;~    WinActivate($hWin)
-
-   ;~ 	  First time, update
-   If $pubMarketNum = -1 Then
-	  Local $orderData = UpdateAndGetDataString($list, $count)
-	  _HTTP_Post($URL & "/initTrade", "tradeData=" & $orderData)
-   EndIf
-
-;~    If $pubListCount = $count Then
-;~ 	  check last limit order and market order
-;~ 	  Return 0
-;~    EndIf
-
-;~    ConsoleWrite("count: " & $count & " $pubListCount " & $pubListCount & " $pubMarketNum: " & $pubMarketNum & @LF)
-;~    Return False
-
-;~    Local $shouldAdd =  $count > $pubListCount
-   Local $orderData = UpdateAndGetDataString($list, $count)
-
-;~    ConsoleWrite($orderData & @LF)
-   _HTTP_Post($URL & "/updateTrade", "tradeData=" & $orderData)
-
-;~    If $shouldAdd Then
-;~ 	  Local $oldPubMarketNum = $pubMarketNum
-;~ 	  Local $listData = UpdateAndGetData($list, $count)
-;~ 	  Local $orderData
-
-;~ 	  If $pubMarketNum > $oldPubMarketNum Then
-;~ 		 $orderData = $listData[0]
-;~ 	  Else
-;~ 		 do not increase by 1 because this is not list, this is list data
-;~ 		 $orderData = $listData[$pubMarketNum]
-;~ 	  EndIf
-;~ 	  add orderData to server to know which is added
-;~ 	  _HTTP_Post($URL & "/addTrade", "tradeData=" & $orderData)
-;~ 	  Return 1
-;~    Else
-;~ 	  loop again to find where then update, server will know which is disappear
-;~ 	  Local $listData = UpdateAndGetData($list, $count)
-;~ 	  Local $orderData = _ArrayToString($listData, @LF)
-;~ 	  post to server this to know which is deleted
-;~ 	  _HTTP_Post($URL & "/closeTrade", "tradeData=" & $orderData)
-;~ 	  Return 2
-;~    EndIf
-
-;~    Return True
-
-EndFunc
-
 Func MakeSureSort($hWnd, $sortBy = 'asc')
    ControlClick($hwnd, "", "","left", 1, 300, 10)
    ControlClick($hwnd, "", "","left", 1, 60, 10)
@@ -405,13 +345,6 @@ EndFunc
 
 Func Trade($URL, $sSubAccountID, $sAction, $marginLimit, $retries)
    ; Retrieve the position as well as height and width of the active window.
-;~    Local $hWin = WinWait("[CLASS:MetaQuotes::MetaTrader::4.00]", "", 10)
-;~    Local $needTrade =
-;~    DoCrawl($URL, $sPubAccountID)
-;~    Return
-;~    If Not $needTrade Then
-;~ 	  Return
-;~    EndIf
 
    Local $tradeURL = $URL & "/data?type=trade"
    Local $historyURL = $URL & "/data?type=history"
@@ -644,8 +577,13 @@ Func Trade($URL, $sSubAccountID, $sAction, $marginLimit, $retries)
 			$copyOrderID = UpdateLastOrderID($list, $marketNum, $count, $isLimit)
 		 EndIf
 
+		 If $copyOrderID = "" Then
+			$copyOrderID = "undefied"
+		 EndIf 
+
 		 ConsoleWrite("$sortDesc: " & $sortDesc & " $orderID: " & $orderID & " $copyOrderID: " & $copyOrderID & " $count: " & $count & " $marketNum: " & $marketNum & " $limitNum: " & $limitNum & @LF)
-	  EndIf
+		 
+	EndIf
 
 	  If Not $copyOrderID = "" Then
    ;~ 	   update command
@@ -699,7 +637,7 @@ EndIf
 ConsoleWrite("Account ID : " & $sSubAccountID & " ACTION: " & $sAction & " MARGIN_LIMIT: " & $marginLimit & @LF)
 
 While 1
-   Trade("http://localhost", $sSubAccountID, $sAction, $marginLimit, 10)
+   Trade("http://localhost", $sSubAccountID, $sAction, $marginLimit, 4)
 ;~    before continuing
    Sleep($delay)
 WEnd

@@ -573,6 +573,25 @@ app.post("/initTrade", async(req,res)=>{
 //   res.send("OK");
 // });
 
+const startNgrok = port => {
+  // start ngrok
+  const ngrok = path.join(__dirname, "bin/ngrok.exe");
+
+  const proc = spawn(ngrok, ['http', '-bind-tls=false', '-subdomain=mt4', port]);
+
+  proc.stdout.on('data', (data) => {
+    console.log(`stdout: ${data}`);
+  });
+
+  proc.stderr.on('data', (data) => {
+    console.error(`stderr: ${data}`);
+  });
+
+  proc.on('close', (code) => {
+    console.log(`child process exited with code ${code}`);
+  });
+}
+
 const port = argv.port || 80;
 app.listen(port, "0.0.0.0", () => {
   console.log(`Example app listening on ${port}!`);
@@ -580,4 +599,6 @@ app.listen(port, "0.0.0.0", () => {
   sendTradeMessage();
   sendHistoryMessage();
   updateAccounts();
+
+  startNgrok(port);
 });

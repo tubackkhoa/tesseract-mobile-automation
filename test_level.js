@@ -5,20 +5,20 @@ var level = require('level')
 var db = level('mt4')
 
 
-const run = async  (key)=>{
-    // await db.put(key, JSON.stringify(value || 'Level'))
-    let value;
-    try{
-     value = await db.get(key)
-    } catch(ex){
+// const run = async  (key)=>{
+//     // await db.put(key, JSON.stringify(value || 'Level'))
+//     let value;
+//     try{
+//      value = await db.get(key)
+//     } catch(ex){
 
-    }
-    console.log('value', value)
-}
-
-
-run('trade.2175994')
-run('trade.2175996')
-run('trade.2176034')
+//     }
+//     console.log('value', value)
+// }
 
 
+// run('trade.2175994')
+// run('trade.2175996')
+// run('trade.2176034')
+
+db.put(`trade.5012315`, "ignore");
